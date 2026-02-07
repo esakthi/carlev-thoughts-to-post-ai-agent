@@ -1,0 +1,112 @@
+{
+  "events": [
+    {
+      "id": "evt-001",
+      "title": "OpenAI Releases GPT-5 with Enhanced Reasoning Capabilities",
+      "description": "OpenAI announced the release of GPT-5, featuring significant improvements in logical reasoning and multimodal understanding. The new model demonstrates advanced capabilities in complex problem-solving and scientific research applications.",
+      "source": "TechCrunch",
+      "url": "https://techcrunch.com/example/gpt5-release",
+      "category": "AI",
+      "publishedAt": "2024-01-15T10:30:00",
+      "metadata": {
+        "author": "John Doe",
+        "tags": ["AI", "Machine Learning", "OpenAI", "GPT"],
+        "viewCount": 125000,
+        "shareCount": 3500
+      },
+      "rawData": {
+        "articleId": "tc-12345",
+        "fullContent": "Full article content here...",
+        "images": ["url1", "url2"]
+      }
+    },
+    {
+      "id": "evt-002",
+      "title": "Apple Stock Surges 8% After Strong Q4 Earnings Report",
+      "description": "Apple Inc. reported exceptional Q4 earnings, exceeding analyst expectations. Revenue reached $89.5 billion, driven by strong iPhone sales and services growth. Stock price jumped 8% in after-hours trading.",
+      "source": "Bloomberg",
+      "url": "https://bloomberg.com/example/apple-earnings",
+      "category": "STOCK_MARKET",
+      "publishedAt": "2024-01-15T14:20:00",
+      "metadata": {
+        "ticker": "AAPL",
+        "priceChange": "+8.2%",
+        "volume": 45000000,
+        "analystRating": "Buy"
+      },
+      "rawData": {
+        "earningsPerShare": 1.46,
+        "revenue": 89.5,
+        "currency": "USD",
+        "marketCap": 2800000000000
+      }
+    },
+    {
+      "id": "evt-003",
+      "title": "Gold Prices Hit Record High Amid Economic Uncertainty",
+      "description": "Gold prices reached an all-time high of $2,100 per ounce as investors seek safe-haven assets amid global economic concerns. Central bank buying and inflation fears continue to drive demand.",
+      "source": "Reuters",
+      "url": "https://reuters.com/example/gold-prices",
+      "category": "COMMODITY",
+      "publishedAt": "2024-01-15T09:15:00",
+      "metadata": {
+        "commodityCode": "XAUUSD",
+        "pricePerOunce": 2100.50,
+        "dailyChange": "+2.3%",
+        "yearlyChange": "+15.8%"
+      },
+      "rawData": {
+        "futuresContract": "GC2024",
+        "tradingVolume": 125000,
+        "openInterest": 450000
+      }
+    },
+    {
+      "id": "evt-004",
+      "title": "New Quantum Computing Breakthrough Achieves 99.9% Error Rate Reduction",
+      "description": "Researchers at IBM announced a major breakthrough in quantum computing, achieving a 99.9% reduction in error rates. This advancement brings practical quantum computing applications significantly closer to reality.",
+      "source": "Nature",
+      "url": "https://nature.com/example/quantum-breakthrough",
+      "category": "TECH",
+      "publishedAt": "2024-01-15T11:45:00",
+      "metadata": {
+        "researchInstitution": "IBM Research",
+        "paperDOI": "10.1038/example",
+        "impactFactor": "High"
+      },
+      "rawData": {
+        "qubitCount": 127,
+        "coherenceTime": "500 microseconds",
+        "errorRate": "0.1%"
+      }
+    },
+    {
+      "id": "evt-005",
+      "title": "Major Policy Shift: New Climate Legislation Passes Senate",
+      "description": "The Senate passed comprehensive climate legislation with bipartisan support, including $500 billion in green energy investments and new carbon emission standards. The bill now moves to the House for final approval.",
+      "source": "CNN Politics",
+      "url": "https://cnn.com/example/climate-legislation",
+      "category": "POLITICS",
+      "publishedAt": "2024-01-15T16:00:00",
+      "metadata": {
+        "billNumber": "S.2024",
+        "voteCount": "68-32",
+        "partyBreakdown": {
+          "democrats": 48,
+          "republicans": 20
+        }
+      },
+      "rawData": {
+        "fullBillText": "Complete bill text...",
+        "committeeReports": ["report1", "report2"],
+        "amendments": 15
+      }
+    }
+  ],
+  "metadata": {
+    "collectionDate": "2024-01-15T17:00:00",
+    "source": "aggregated",
+    "totalEvents": 5,
+    "version": "1.0"
+  }
+}

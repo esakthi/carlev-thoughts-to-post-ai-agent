@@ -1,0 +1,1 @@
+Carlev thoughts to post is an application consisting of angular frontend, spring boot microservices and python langchain ai agent.
