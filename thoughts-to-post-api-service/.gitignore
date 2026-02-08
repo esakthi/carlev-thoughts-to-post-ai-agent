@@ -1,0 +1,5 @@
+application-local.yml
+application-dev.yml
+*.local.yml
+.env
+.env.local

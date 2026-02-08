@@ -1,0 +1,81 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable, BehaviorSubject, interval, switchMap, takeWhile, tap } from 'rxjs';
+import {
+    ThoughtResponse,
+    CreateThoughtRequest,
+    ThoughtHistory
+} from '../models/thought.models';
+
+@Injectable({
+    providedIn: 'root'
+})
+export class ThoughtsService {
+    private readonly http = inject(HttpClient);
+    private readonly apiUrl = 'http://localhost:8080/api/thoughts';
+
+    // User ID header - in production, this would come from auth service
+    private readonly userId = 'user-123';
+
+    private get headers(): HttpHeaders {
+        return new HttpHeaders({
+            'Content-Type': 'application/json',
+            'X-User-Id': this.userId
+        });
+    }
+
+    /**
+     * Create a new thought and send for AI enrichment
+     */
+    createThought(request: CreateThoughtRequest): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(this.apiUrl, request, { headers: this.headers });
+    }
+
+    /**
+     * Get a thought by ID
+     */
+    getThought(id: string): Observable<ThoughtResponse> {
+        return this.http.get<ThoughtResponse>(`${this.apiUrl}/${id}`, { headers: this.headers });
+    }
+
+    /**
+     * Get all thoughts for the current user
+     */
+    getUserThoughts(): Observable<ThoughtResponse[]> {
+        return this.http.get<ThoughtResponse[]>(this.apiUrl, { headers: this.headers });
+    }
+
+    /**
+     * Get history for a thought
+     */
+    getThoughtHistory(id: string): Observable<ThoughtHistory[]> {
+        return this.http.get<ThoughtHistory[]>(`${this.apiUrl}/${id}/history`, { headers: this.headers });
+    }
+
+    /**
+     * Approve a thought and post to social media
+     */
+    approveAndPost(id: string): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/approve`, {}, { headers: this.headers });
+    }
+
+    /**
+     * Reject a thought
+     */
+    rejectThought(id: string): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/reject`, {}, { headers: this.headers });
+    }
+
+    /**
+     * Poll for thought status updates until it's no longer processing
+     */
+    pollForUpdates(id: string, intervalMs = 2000): Observable<ThoughtResponse> {
+        return interval(intervalMs).pipe(
+            switchMap(() => this.getThought(id)),
+            takeWhile(thought =>
+                thought.status === 'PENDING' || thought.status === 'PROCESSING',
+                true
+            )
+        );
+    }
+}
