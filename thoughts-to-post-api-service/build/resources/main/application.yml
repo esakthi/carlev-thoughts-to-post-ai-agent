@@ -34,9 +34,12 @@ app:
   # LinkedIn OAuth Configuration
   linkedin:
     client-id: ${LINKEDIN_CLIENT_ID:86xv8cp5m4na0e}
-    client-secret: ${LINKEDIN_CLIENT_SECRET:WPL_AP1.xV9PQPfCIEbaP6gj.PfZ19g==}
+    client-secret: ${LINKEDIN_CLIENT_SECRET:WPL_AP1.U99saLxEyphqWp9S.7SkZOw==}
     redirect-uri: ${LINKEDIN_REDIRECT_URI:http://localhost:8080/api/oauth/linkedin/callback}
     scopes: openid,profile,email,w_member_social
+    # For direct posting without OAuth flow (Dev/Test)
+    access-token: ${LINKEDIN_ACCESS_TOKEN:}
+    user-urn: ${LINKEDIN_USER_URN:}
 
   # Future: Facebook Configuration
   facebook:

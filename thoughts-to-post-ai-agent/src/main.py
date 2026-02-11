@@ -73,6 +73,11 @@ class ThoughtsToPostAgent:
             logger.info(f"Enriching content for platforms: {request.platforms}")
             enriched_contents = self.content_agent.enrich_all_platforms(request)
 
+            if not enriched_contents and request.platforms:
+                msg = f"Failed to enrich content for any of the requested platforms: {request.platforms}"
+                logger.error(msg)
+                raise Exception(msg)
+
             # Update context with enriched contents
             self.memory.update_context(
                 request.request_id, enriched_contents=enriched_contents

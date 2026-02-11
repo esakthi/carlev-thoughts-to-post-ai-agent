@@ -1,10 +1,12 @@
 """Data classes for the AI Agent using Pydantic for validation."""
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class PlatformType(str, Enum):
@@ -25,19 +27,126 @@ class RequestStatus(str, Enum):
 
 
 class ThoughtRequest(BaseModel):
-    """Input request from Kafka containing the thought to enrich."""
+    """Input request from Kafka containing the thought to enrich.
 
-    request_id: str = Field(..., description="Unique request identifier")
-    user_id: str = Field(..., description="ID of the user making the request")
-    original_thought: str = Field(..., description="The original thought/topic from user")
+    Note:
+        The upstream Kafka message uses camelCase keys and uppercase platform names.
+        Field aliases and validators are used here to adapt that payload into our
+        internal snake_case + enum-based model.
+    """
+
+    # Map camelCase JSON keys from Kafka to our internal snake_case fields
+    request_id: str = Field(
+        ...,
+        alias="requestId",
+        description="Unique request identifier",
+    )
+    user_id: str = Field(
+        ...,
+        alias="userId",
+        description="ID of the user making the request",
+    )
+    original_thought: str = Field(
+        ...,
+        alias="originalThought",
+        description="The original thought/topic from user",
+    )
     platforms: list[PlatformType] = Field(
-        default_factory=list, description="Selected social media platforms"
+        default_factory=list,
+        alias="platforms",
+        description="Selected social media platforms",
     )
     additional_instructions: Optional[str] = Field(
-        default=None, description="Additional instructions for enrichment"
+        default=None,
+        alias="additionalInstructions",
+        description="Additional instructions for enrichment",
     )
-    version: int = Field(default=1, description="Request version for refinements")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    version: int = Field(
+        default=1,
+        alias="version",
+        description="Request version for refinements",
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        alias="createdAt",
+        description="Request creation time",
+    )
+
+    # Allow population using either field names or aliases
+    class Config:
+        allow_population_by_field_name = True
+        populate_by_name = True
+
+    @field_validator("platforms", mode="before")
+    @classmethod
+    def normalize_platforms(cls, value):
+        """Normalize platform names from incoming payload.
+
+        Accepts values like ["LINKEDIN"] and converts them to lowercase so they
+        match the PlatformType enum values ("linkedin", "facebook", "instagram").
+        """
+        if value is None:
+            return []
+
+        # Allow single string or enum as well as list
+        if isinstance(value, (str, PlatformType)):
+            value = [value]
+
+        normalized: list[str | PlatformType] = []
+        for item in value:
+            if isinstance(item, PlatformType):
+                normalized.append(item)
+            elif isinstance(item, str):
+                normalized.append(item.lower())
+            else:
+                normalized.append(str(item).lower())
+
+        return normalized
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def parse_created_at(cls, value):
+        """Handle createdAt coming in as ISO-8601 string or array format.
+        
+        The Kafka producer now sends dates as ISO-8601 strings (e.g., "2026-02-09T21:19:05.975").
+        This validator handles both the new ISO-8601 format and the legacy array format
+        for backward compatibility.
+        """
+        if value is None:
+            return value
+
+        # Handle ISO-8601 string format (new format from Java producer)
+        if isinstance(value, str):
+            try:
+                # Normalize 'Z' suffix to '+00:00' for UTC timezone
+                normalized = value.replace('Z', '+00:00')
+                # Handle formats like:
+                # - "2026-02-09T21:19:05.975" (with microseconds)
+                # - "2026-02-09T21:19:05" (without microseconds)
+                # - "2026-02-09T21:19:05.975Z" (with Z suffix)
+                # - "2026-02-09T21:19:05+00:00" (with timezone)
+                return datetime.fromisoformat(normalized)
+            except (ValueError, AttributeError) as e:
+                # If parsing fails, log and let Pydantic handle it
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to parse ISO-8601 date '{value}': {e}")
+                return value
+
+        # Handle legacy array format [year, month, day, hour, min, sec, ...] for backward compatibility
+        if isinstance(value, list) and len(value) >= 6:
+            try:
+                # Ignore sub-second component if present
+                return datetime(*value[:6])
+            except Exception:
+                # Fallback to default parsing if this fails
+                return value
+
+        # If it's already a datetime, return as-is
+        if isinstance(value, datetime):
+            return value
+
+        # Let Pydantic handle other formats
+        return value
 
 
 class EnrichedContent(BaseModel):

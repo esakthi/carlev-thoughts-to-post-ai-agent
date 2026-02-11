@@ -1,6 +1,7 @@
 package com.carlev.thoughtstopost.kafka;
 
 import com.carlev.thoughtstopost.model.PlatformType;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,5 +25,6 @@ public class ThoughtRequestMessage {
     private List<PlatformType> platforms;
     private String additionalInstructions;
     private Integer version;
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime createdAt;
 }

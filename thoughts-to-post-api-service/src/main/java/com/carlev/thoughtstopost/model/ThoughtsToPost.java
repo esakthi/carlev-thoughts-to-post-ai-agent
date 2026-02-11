@@ -73,5 +73,14 @@ public class ThoughtsToPost {
         private List<String> hashtags = new ArrayList<>();
         private String callToAction;
         private Integer characterCount;
+
+        // Posting status tracking
+        @Builder.Default
+        private PostStatus status = PostStatus.PENDING;
+        private String postId;
+        @Builder.Default
+        private Integer retryCount = 0;
+        private LocalDateTime lastRetryAt;
+        private String errorMessage;
     }
 }

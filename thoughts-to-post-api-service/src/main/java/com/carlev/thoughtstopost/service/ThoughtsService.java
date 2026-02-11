@@ -72,6 +72,9 @@ public class ThoughtsService {
     public ThoughtResponse getThought(String id) {
         ThoughtsToPost thought = thoughtsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+        // print this whole object as json in the logs
+        log.info("Thought shared by User to AI for enriching has been Retrieved from MongoDB, thought Details: {}",
+                thought);
         return ThoughtResponse.fromEntity(thought);
     }
 
@@ -99,7 +102,7 @@ public class ThoughtsService {
         ThoughtsToPost thought = thoughtsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
-        if (thought.getStatus() != PostStatus.ENRICHED) {
+        if (thought.getStatus() != PostStatus.ENRICHED && thought.getStatus() != PostStatus.FAILED) {
             throw new RuntimeException("Thought is not ready for approval. Status: " + thought.getStatus());
         }
 
@@ -109,26 +112,65 @@ public class ThoughtsService {
         thought = thoughtsRepository.save(thought);
         createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.APPROVE, userId);
 
-        // Post to social media
+        // Initial attempt to post
+        attemptPosting(id);
+
+        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(thought));
+    }
+
+    /**
+     * Attempt to post a thought to all selected platforms.
+     * Can be called from the controller or the scheduler.
+     */
+    public void attemptPosting(String id) {
+        ThoughtsToPost thought = thoughtsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        if (thought.getStatus() != PostStatus.APPROVED && thought.getStatus() != PostStatus.POSTING
+                && thought.getStatus() != PostStatus.FAILED) {
+            log.warn("Thought {} is not in a postable state: {}", id, thought.getStatus());
+            return;
+        }
+
         try {
+            // Check if all platforms already posted
+            boolean allPosted = thought.getEnrichedContents().stream()
+                    .allMatch(c -> c.getStatus() == PostStatus.POSTED);
+
+            if (allPosted) {
+                thought.setStatus(PostStatus.POSTED);
+                thoughtsRepository.save(thought);
+                return;
+            }
+
             thought.setStatus(PostStatus.POSTING);
             thoughtsRepository.save(thought);
 
             socialMediaService.postToSelectedPlatforms(thought);
 
-            thought.setStatus(PostStatus.POSTED);
-            thought = thoughtsRepository.save(thought);
-            createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.POST, userId);
+            // Re-fetch or use updated object from service (which saves it)
+            thought = thoughtsRepository.findById(id).orElse(thought);
 
-            log.info("Successfully posted thought to social media: {}", id);
+            // Check again if all posted after service call
+            boolean fullyPosted = thought.getEnrichedContents().stream()
+                    .allMatch(c -> c.getStatus() == PostStatus.POSTED);
+
+            if (fullyPosted) {
+                thought.setStatus(PostStatus.POSTED);
+                thought = thoughtsRepository.save(thought);
+                createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.POST, "system");
+            } else {
+                thought.setStatus(PostStatus.FAILED);
+                thoughtsRepository.save(thought);
+            }
+
+            log.info("Finished attempt to post thought: {}", id);
         } catch (Exception e) {
-            log.error("Failed to post to social media: {}", e.getMessage(), e);
+            log.error("Failed post attempt for thought {}: {}", id, e.getMessage());
             thought.setStatus(PostStatus.FAILED);
-            thought.setErrorMessage("Failed to post: " + e.getMessage());
-            thought = thoughtsRepository.save(thought);
+            thought.setErrorMessage("Post attempt failed: " + e.getMessage());
+            thoughtsRepository.save(thought);
         }
-
-        return ThoughtResponse.fromEntity(thought);
     }
 
     /**

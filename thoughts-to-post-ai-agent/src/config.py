@@ -32,11 +32,11 @@ class Settings(BaseSettings):
         description="Ollama API base URL"
     )
     ollama_model: str = Field(
-        default="llama3.2",
+        default="qwen3-vl:235b-cloud",
         description="Ollama model for text generation"
     )
     ollama_image_model: str = Field(
-        default="llava",
+        default="qwen3-vl:235b-cloud",
         description="Ollama model for image understanding"
     )
 

@@ -41,7 +41,7 @@ import { ThoughtResponse, PLATFORM_CONFIG, EnrichedContent } from '../../models/
       }
 
       <!-- Enriched Content by Platform -->
-      @if (thought.enrichedContents?.length > 0) {
+      @if ((thought.enrichedContents?.length ?? 0) > 0) {
         <div class="enriched-content">
           <h4 class="section-title">Enriched Content</h4>
           @for (content of thought.enrichedContents; track content.platform) {
@@ -57,7 +57,7 @@ import { ThoughtResponse, PLATFORM_CONFIG, EnrichedContent } from '../../models/
               <div class="content-body">
                 <p class="content-text">{{ content.body }}</p>
               </div>
-              @if (content.hashtags?.length > 0) {
+              @if ((content.hashtags?.length ?? 0) > 0) {
                 <div class="hashtags">
                   @for (tag of content.hashtags; track tag) {
                     <span class="hashtag">#{{ tag }}</span>
