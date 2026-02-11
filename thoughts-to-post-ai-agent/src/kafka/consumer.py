@@ -35,6 +35,27 @@ class KafkaRequestConsumer:
         self._consumer: Optional[KafkaPythonConsumer] = None
         self._running = False
 
+    def _deserialize_value(self, message: bytes) -> Optional[dict]:
+        """Safely deserialize a Kafka message value.
+        
+        Args:
+            message: Raw message bytes
+            
+        Returns:
+            Deserialized JSON dict, or None if message is empty/invalid
+        """
+        if not message:
+            return None
+        
+        try:
+            decoded = message.decode("utf-8")
+            if not decoded.strip():
+                return None
+            return json.loads(decoded)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            logger.warning(f"Failed to deserialize message: {e}")
+            return None
+
     def _create_consumer(self) -> KafkaPythonConsumer:
         """Create and configure the Kafka consumer."""
         return KafkaPythonConsumer(
@@ -43,7 +64,7 @@ class KafkaRequestConsumer:
             group_id=self.group_id,
             auto_offset_reset="earliest",
             enable_auto_commit=True,
-            value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+            value_deserializer=self._deserialize_value,
             key_deserializer=lambda k: k.decode("utf-8") if k else None,
             max_poll_interval_ms=300000,  # 5 minutes
             session_timeout_ms=30000,
@@ -71,14 +92,56 @@ class KafkaRequestConsumer:
                 for topic_partition, records in messages.items():
                     for record in records:
                         try:
-                            logger.info(
-                                f"Received message: key={record.key}, "
-                                f"partition={topic_partition.partition}, "
-                                f"offset={record.offset}"
-                            )
+                            # Log comprehensive message details
+                            logger.info("=" * 80)
+                            logger.info("KAFKA MESSAGE RECEIVED")
+                            logger.info("=" * 80)
+                            logger.info(f"Topic: {topic_partition.topic}")
+                            logger.info(f"Partition: {topic_partition.partition}")
+                            logger.info(f"Offset: {record.offset}")
+                            logger.info(f"Timestamp: {record.timestamp}")
+                            logger.info(f"Timestamp Type: {record.timestamp_type}")
+                            logger.info(f"Key: {record.key}")
+                            
+                            # Log headers if present
+                            if record.headers:
+                                logger.info("Headers:")
+                                for header_key, header_value in record.headers:
+                                    header_key_str = header_key.decode("utf-8") if isinstance(header_key, bytes) else header_key
+                                    header_value_str = header_value.decode("utf-8") if isinstance(header_value, bytes) else header_value
+                                    logger.info(f"  {header_key_str}: {header_value_str}")
+                            else:
+                                logger.info("Headers: None")
+                            
+                            # Log message value
+                            logger.info("Message Value:")
+                            if record.value is None:
+                                logger.warning("  Value is None (empty or invalid message)")
+                            else:
+                                try:
+                                    # Pretty print JSON if it's a dict
+                                    if isinstance(record.value, dict):
+                                        value_json = json.dumps(record.value, indent=2, ensure_ascii=False)
+                                        logger.info(f"  {value_json}")
+                                    else:
+                                        logger.info(f"  {record.value}")
+                                except Exception as e:
+                                    logger.warning(f"  Could not format value: {e}")
+                                    logger.info(f"  Raw value: {record.value}")
+                            
+                            logger.info("=" * 80)
+
+                            # Skip empty or invalid messages
+                            if record.value is None:
+                                logger.warning(
+                                    f"Skipping empty/invalid message at offset {record.offset}"
+                                )
+                                continue
 
                             # Parse the message into ThoughtRequest
+                            logger.info(f"Before parsing ThoughtRequest: Record value: {record.value}")
                             thought_request = ThoughtRequest(**record.value)
+                            logger.info(f"Successfully parsed ThoughtRequest: request_id={thought_request.request_id}")
                             message_handler(thought_request)
 
                         except Exception as e:

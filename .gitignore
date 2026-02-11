@@ -1,1 +1,59 @@
-#GitIgnore
+# General
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Python (AI Agent)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+thoughts-to-post-ai-agent/checkpoints/
+
+# Angular (UI)
+thoughts-to-post-angular-ui/node_modules/
+thoughts-to-post-angular-ui/dist/
+thoughts-to-post-angular-ui/.angular/
+thoughts-to-post-angular-ui/.editorconfig
+thoughts-to-post-angular-ui/coverage/
+
+# Java/Gradle (API Service)
+thoughts-to-post-api-service/.gradle/
+thoughts-to-post-api-service/build/
+thoughts-to-post-api-service/target/
+thoughts-to-post-api-service/bin/
+thoughts-to-post-api-service/.settings/
+thoughts-to-post-api-service/.classpath
+thoughts-to-post-api-service/.project
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Docker
+docker-compose.override.yml
+
+# Brain/Artifacts
+.agent/
+brain/

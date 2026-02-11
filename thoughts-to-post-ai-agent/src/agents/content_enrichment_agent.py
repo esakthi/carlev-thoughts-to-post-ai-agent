@@ -153,28 +153,50 @@ class ContentEnrichmentAgent:
 
         logger.info(f"Enriching content for {platform.value}: {request.original_thought[:50]}...")
 
-        try:
-            enriched_text = chain.invoke({
-                "history": history,
-                "input": input_text,
-            })
+        # Retry logic for 503 Service Unavailable or other transient errors
+        max_retries = 3
+        retry_delay = 1.0  # Start with 1 second
 
-            # Store in conversation history
-            self._add_to_history(request.request_id, input_text, enriched_text)
+        import time
+        import random
 
-            # Parse hashtags from the content
-            hashtags = self._extract_hashtags(enriched_text)
-
-            # Create the enriched content
-            return EnrichedContent(
-                platform=platform,
-                body=enriched_text,
-                hashtags=hashtags,
-            )
-
-        except Exception as e:
-            logger.error(f"Error enriching content: {e}", exc_info=True)
-            raise
+        for attempt in range(max_retries + 1):
+            try:
+                enriched_text = chain.invoke({
+                    "history": history,
+                    "input": input_text,
+                })
+                logger.info(f"Model has returned the enriched text: {enriched_text}")
+                # Store in conversation history
+                self._add_to_history(request.request_id, input_text, enriched_text)
+                logger.info(f"Added the enriched text to the conversation history")
+                # Parse hashtags from the content
+                hashtags = self._extract_hashtags(enriched_text)
+                logger.info(f"Extracted the hashtags from the enriched text: {hashtags}")
+                # Create the enriched content
+                return EnrichedContent(
+                    platform=platform,
+                    body=enriched_text,
+                    hashtags=hashtags,
+                )
+                logger.info(f"Created the enriched content: {enriched_text}")
+                logger.info(f"Hashtags: {enriched_content.hashtags}")
+            except Exception as e:
+                # Check for 503 or if it's the last attempt
+                is_503 = "503" in str(e)
+                if attempt < max_retries and (is_503 or "Connection refused" in str(e)):
+                    sleep_time = retry_delay * (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries + 1} failed for {platform.value}. "
+                        f"Retrying in {sleep_time:.2f}s... Error: {e}"
+                    )
+                    time.sleep(sleep_time)
+                else:
+                    logger.error(
+                        f"Error enriching content for {platform.value} after {attempt + 1} attempts: {e}", 
+                        exc_info=True
+                    )
+                    raise
 
     def enrich_all_platforms(
         self, request: ThoughtRequest

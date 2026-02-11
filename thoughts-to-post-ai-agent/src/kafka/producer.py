@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import datetime
 from typing import Optional
 
 from kafka import KafkaProducer as KafkaPythonProducer
@@ -31,11 +32,28 @@ class KafkaResponseProducer:
         self.topic = topic or settings.kafka_response_topic
         self._producer: Optional[KafkaPythonProducer] = None
 
+    def _serialize_value(self, value: dict) -> bytes:
+        """Serialize response value to JSON with ISO-8601 date formatting.
+        
+        Args:
+            value: Dictionary to serialize
+            
+        Returns:
+            JSON-encoded bytes with ISO-8601 formatted dates
+        """
+        def json_serializer(obj):
+            """Custom JSON serializer for datetime objects."""
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            raise TypeError(f"Type {type(obj)} not serializable")
+        
+        return json.dumps(value, default=json_serializer).encode("utf-8")
+
     def _create_producer(self) -> KafkaPythonProducer:
         """Create and configure the Kafka producer."""
         return KafkaPythonProducer(
             bootstrap_servers=self.bootstrap_servers.split(","),
-            value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
+            value_serializer=self._serialize_value,
             key_serializer=lambda k: k.encode("utf-8") if k else None,
             acks="all",
             retries=3,
