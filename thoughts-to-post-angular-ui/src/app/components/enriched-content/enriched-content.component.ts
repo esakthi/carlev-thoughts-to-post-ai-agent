@@ -52,51 +52,85 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
           <!-- Enriched Content by Platform -->
           @if ((thought.enrichedContents?.length ?? 0) > 0) {
             <div class="enriched-content">
-              <h4 class="section-title">Enriched Content</h4>
-              @for (content of thought.enrichedContents; track content.platform) {
-                <div class="platform-content card">
-                  <div class="platform-header">
-                    <span class="platform-badge" [ngClass]="content.platform.toLowerCase()">
-                      {{ PLATFORM_CONFIG[content.platform].label }}
-                    </span>
-                    <span class="char-count text-muted">
-                      {{ content.characterCount }} characters
-                    </span>
-                  </div>
-                  <div class="content-body">
-                    <p class="content-text">{{ content.body }}</p>
-                  </div>
-                  @if ((content.hashtags?.length ?? 0) > 0) {
-                    <div class="hashtags">
-                      @for (tag of content.hashtags; track tag) {
-                        <span class="hashtag">#{{ tag }}</span>
-                      }
+              <div class="section-header">
+                <h4 class="section-title">Enriched Content</h4>
+                @if (canEdit()) {
+                  <button class="btn-text" (click)="toggleEdit()">
+                    {{ isEditing() ? 'Cancel' : 'Edit Content' }}
+                  </button>
+                }
+              </div>
+
+              @if (!isEditing()) {
+                @for (content of thought.enrichedContents; track content.platform) {
+                  <div class="platform-content card">
+                    <div class="platform-header">
+                      <span class="platform-badge" [ngClass]="content.platform.toLowerCase()">
+                        {{ PLATFORM_CONFIG[content.platform].label }}
+                      </span>
+                      <span class="char-count text-muted">
+                        {{ content.characterCount }} characters
+                      </span>
                     </div>
-                  }
-                </div>
+                    <div class="content-body">
+                      <p class="content-text">{{ content.body }}</p>
+                    </div>
+                    @if ((content.hashtags?.length ?? 0) > 0) {
+                      <div class="hashtags">
+                        @for (tag of content.hashtags; track tag) {
+                          <span class="hashtag">#{{ tag }}</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              } @else {
+                @for (content of editableEnrichedContents; track content.platform; let i = $index) {
+                  <div class="platform-content card edit-mode">
+                    <div class="platform-header">
+                      <span class="platform-badge" [ngClass]="content.platform.toLowerCase()">
+                        {{ PLATFORM_CONFIG[content.platform].label }}
+                      </span>
+                    </div>
+                    <div class="edit-fields">
+                      <div class="form-group">
+                        <label>Post Body</label>
+                        <textarea class="form-control" [(ngModel)]="content.body" rows="6"></textarea>
+                      </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm mt-md" (click)="saveEdits()">Save Changes</button>
+                  </div>
+                }
               }
             </div>
           }
 
-          @if (thought.status === 'ENRICHED') {
+          @if (canResubmit() || (thought.status === 'ENRICHED' && currentStep() === 1)) {
             <!-- User Comments for Text -->
             <div class="user-comments card">
-              <h4 class="section-title">Your Comments on Text</h4>
+              <h4 class="section-title">Your Comments / Instructions</h4>
               <textarea
                 class="form-control"
                 [(ngModel)]="textContentComments"
-                placeholder="Add any specific comments or changes for the text content..."
+                placeholder="Add comments to resubmit to AI or for your own reference..."
                 rows="3"
               ></textarea>
+              @if (canResubmit()) {
+                <button class="btn btn-secondary btn-sm mt-md" (click)="onResubmit()" [disabled]="!textContentComments">
+                  🔄 Resubmit to AI with these comments
+                </button>
+              }
             </div>
 
             <div class="action-buttons">
-              <button class="btn btn-primary" (click)="nextStep()">
-                Next: Review Image →
-              </button>
-              <button class="btn btn-secondary" (click)="reject.emit()">
-                ✕ Reject
-              </button>
+              @if (thought.status === 'ENRICHED' && currentStep() === 1) {
+                <button class="btn btn-primary" (click)="nextStep()">
+                  Next: Review Image →
+                </button>
+                <button class="btn btn-secondary" (click)="reject.emit()">
+                  ✕ Reject
+                </button>
+              }
             </div>
           }
         </div>
@@ -205,12 +239,33 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
       gap: var(--spacing-sm);
     }
 
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--spacing-md);
+    }
+
     .section-title {
       font-size: 0.875rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
-      margin-bottom: var(--spacing-md);
+      margin-bottom: 0;
+    }
+
+    .btn-text {
+      background: none;
+      border: none;
+      color: var(--primary-color);
+      font-weight: 500;
+      cursor: pointer;
+      padding: 0;
+      font-size: 0.875rem;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
 
     .original-thought {
@@ -259,6 +314,42 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
     .content-text {
       white-space: pre-wrap;
       line-height: 1.7;
+    }
+
+    .edit-fields {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+      margin-top: var(--spacing-md);
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+
+        label {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          font-weight: 600;
+        }
+
+        textarea {
+          width: 100%;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-md);
+          color: var(--text-primary);
+          padding: var(--spacing-md);
+          font-family: inherit;
+          resize: vertical;
+
+          &:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: rgba(255, 255, 255, 0.08);
+          }
+        }
+      }
     }
 
     .hashtags {
@@ -401,6 +492,15 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
       }
     }
 
+    .mt-md {
+      margin-top: var(--spacing-md);
+    }
+
+    .btn-sm {
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-size: 0.875rem;
+    }
+
     .success-message,
     .error-message {
       text-align: center;
@@ -434,8 +534,12 @@ export class EnrichedContentComponent {
     @Input() isProcessing = false;
     @Output() approve = new EventEmitter<ApproveThoughtRequest>();
     @Output() reject = new EventEmitter<void>();
+    @Output() updateContent = new EventEmitter<ThoughtResponse>();
+    @Output() reenrich = new EventEmitter<string>();
 
     currentStep = signal(1);
+    isEditing = signal(false);
+    editableEnrichedContents: ThoughtResponse['enrichedContents'] = [];
 
     // Form state
     textContentComments = '';
@@ -460,6 +564,31 @@ export class EnrichedContentComponent {
             postText: this.postText,
             postImage: this.postImage
         });
+    }
+
+    toggleEdit() {
+        if (!this.isEditing()) {
+            this.editableEnrichedContents = JSON.parse(JSON.stringify(this.thought.enrichedContents));
+        }
+        this.isEditing.set(!this.isEditing());
+    }
+
+    saveEdits() {
+        const updatedThought = { ...this.thought, enrichedContents: this.editableEnrichedContents };
+        this.updateContent.emit(updatedThought);
+        this.isEditing.set(false);
+    }
+
+    onResubmit() {
+        this.reenrich.emit(this.textContentComments);
+    }
+
+    canEdit(): boolean {
+        return this.thought.status !== 'POSTED' && this.thought.status !== 'POSTING' && this.currentStep() === 1;
+    }
+
+    canResubmit(): boolean {
+        return this.thought.status === 'ENRICHED' || this.thought.status === 'FAILED' || this.thought.status === 'REJECTED';
     }
 
     getStatusLabel(status: string): string {

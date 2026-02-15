@@ -1,19 +1,22 @@
 import { Component } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 
 @Component({
     selector: 'app-header',
     standalone: true,
+    imports: [RouterLink, RouterLinkActive],
     template: `
     <header class="header">
       <div class="container">
         <div class="header-content">
-          <div class="logo">
+          <div class="logo" routerLink="/" style="cursor: pointer;">
             <span class="logo-icon">✨</span>
             <span class="logo-text">Thoughts to Post</span>
           </div>
           <nav class="nav">
-            <span class="nav-item active">Create</span>
-            <span class="nav-item">History</span>
+            <a class="nav-item" routerLink="/create" routerLinkActive="active">Create</a>
+            <a class="nav-item" routerLink="/pending" routerLinkActive="active">Pending</a>
+            <a class="nav-item" routerLink="/history" routerLinkActive="active">History</a>
           </nav>
         </div>
       </div>
@@ -66,6 +69,7 @@ import { Component } from '@angular/core';
       cursor: pointer;
       transition: color 0.3s ease;
       position: relative;
+      text-decoration: none;
 
       &:hover, &.active {
         color: var(--text-primary);

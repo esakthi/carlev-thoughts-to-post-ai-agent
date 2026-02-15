@@ -88,6 +88,24 @@ public class ThoughtsService {
     }
 
     /**
+     * Get thoughts for a user filtered by status.
+     */
+    public List<ThoughtResponse> getUserThoughtsByStatus(String userId, PostStatus status) {
+        return thoughtsRepository.findByUserIdAndStatus(userId, status).stream()
+                .map(ThoughtResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get thoughts for a user where status is not equal to provided status.
+     */
+    public List<ThoughtResponse> getUserThoughtsByStatusNot(String userId, PostStatus status) {
+        return thoughtsRepository.findByUserIdAndStatusNot(userId, status).stream()
+                .map(ThoughtResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get history for a thought.
      */
     public List<ThoughtsToPostHistory> getThoughtHistory(String thoughtId) {
@@ -193,6 +211,70 @@ public class ThoughtsService {
 
         log.info("Rejected thought: {}", id);
         return ThoughtResponse.fromEntity(thought);
+    }
+
+    /**
+     * Update enriched content of a thought manually.
+     */
+    @Transactional
+    public ThoughtResponse updateEnrichedContent(String id, ThoughtResponse request, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        if (thought.getStatus() == PostStatus.POSTED) {
+            throw new RuntimeException("Cannot edit content after it has been posted.");
+        }
+
+        // Update enriched contents
+        if (request.getEnrichedContents() != null) {
+            List<ThoughtsToPost.EnrichedContent> updatedContents = request.getEnrichedContents().stream()
+                    .map(dto -> {
+                        // Find existing content to preserve status, postId etc.
+                        ThoughtsToPost.EnrichedContent existing = thought.getEnrichedContents().stream()
+                                .filter(ec -> ec.getPlatform() == dto.getPlatform())
+                                .findFirst()
+                                .orElse(new ThoughtsToPost.EnrichedContent());
+
+                        existing.setPlatform(dto.getPlatform());
+                        existing.setTitle(dto.getTitle());
+                        existing.setBody(dto.getBody());
+                        existing.setHashtags(dto.getHashtags());
+                        existing.setCallToAction(dto.getCallToAction());
+                        existing.setCharacterCount(dto.getCharacterCount());
+                        return existing;
+                    })
+                    .collect(Collectors.toList());
+            thought.setEnrichedContents(updatedContents);
+        }
+
+        thought.setUpdatedBy(userId);
+        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
+        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+
+        return ThoughtResponse.fromEntity(savedThought);
+    }
+
+    /**
+     * Resubmit a thought for re-enrichment by the AI agent.
+     */
+    @Transactional
+    public ThoughtResponse reenrichThought(String id, String additionalInstructions, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        if (thought.getStatus() == PostStatus.POSTED) {
+            throw new RuntimeException("Cannot re-enrich content after it has been posted.");
+        }
+
+        thought.setUpdatedBy(userId);
+
+        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
+        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+
+        // Send to Kafka for AI processing
+        sendToAiAgent(savedThought, additionalInstructions);
+
+        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(savedThought));
     }
 
     /**
