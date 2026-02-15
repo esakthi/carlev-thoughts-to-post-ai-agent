@@ -4,6 +4,7 @@ import { Observable, BehaviorSubject, interval, switchMap, takeWhile, tap } from
 import {
     ThoughtResponse,
     CreateThoughtRequest,
+    ApproveThoughtRequest,
     ThoughtHistory
 } from '../models/thought.models';
 
@@ -13,6 +14,7 @@ import {
 export class ThoughtsService {
     private readonly http = inject(HttpClient);
     private readonly apiUrl = 'http://localhost:8080/api/thoughts';
+    private readonly oauthUrl = 'http://localhost:8080/api/oauth';
 
     // User ID header - in production, this would come from auth service
     private readonly userId = 'user-123';
@@ -55,8 +57,8 @@ export class ThoughtsService {
     /**
      * Approve a thought and post to social media
      */
-    approveAndPost(id: string): Observable<ThoughtResponse> {
-        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/approve`, {}, { headers: this.headers });
+    approveAndPost(id: string, request: ApproveThoughtRequest): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/approve`, request, { headers: this.headers });
     }
 
     /**
@@ -77,5 +79,19 @@ export class ThoughtsService {
                 true
             )
         );
+    }
+
+    /**
+     * Get LinkedIn authorization status
+     */
+    getLinkedInStatus(): Observable<{ authorized: boolean }> {
+        return this.http.get<{ authorized: boolean }>(`${this.oauthUrl}/linkedin/status`, { headers: this.headers });
+    }
+
+    /**
+     * Get LinkedIn authorization URL
+     */
+    getLinkedInAuthUrl(): Observable<{ authorizationUrl: string; state: string }> {
+        return this.http.get<{ authorizationUrl: string; state: string }>(`${this.oauthUrl}/linkedin/authorize`, { headers: this.headers });
     }
 }

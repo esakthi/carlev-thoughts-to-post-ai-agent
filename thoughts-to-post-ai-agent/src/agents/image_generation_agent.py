@@ -137,6 +137,82 @@ class DalleGenerator(ImageGenerator):
             raise
 
 
+class OllamaGenerator(ImageGenerator):
+    """Image generator using Ollama API (experimental)."""
+
+    def __init__(self, api_url: Optional[str] = None, model_name: Optional[str] = None):
+        """Initialize the Ollama generator.
+
+        Args:
+            api_url: Ollama API URL (defaults to settings)
+            model_name: Ollama model for image generation
+        """
+        self.api_url = api_url or settings.ollama_base_url
+        self.model_name = model_name or settings.ollama_image_model
+
+    def generate(self, prompt: str) -> GeneratedImage:
+        """Generate an image using Ollama.
+
+        Args:
+            prompt: The image generation prompt
+
+        Returns:
+            GeneratedImage with base64 encoded image
+        """
+        # Experimental: Using Ollama's generate endpoint for image models
+        endpoint = f"{self.api_url}/api/generate"
+
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False,
+        }
+
+        try:
+            logger.info(f"Calling Ollama image generation with model: {self.model_name}")
+            with httpx.Client(timeout=180.0) as client:
+                response = client.post(endpoint, json=payload)
+                response.raise_for_status()
+
+                result = response.json()
+
+                # Experimental image models in Ollama may return the image in different ways
+                # Some return it in a 'response' field, some in an 'images' list
+                image_base64 = None
+
+                if "image" in result:
+                    image_base64 = result["image"]
+                elif "images" in result and result["images"]:
+                    image_base64 = result["images"][0]
+                elif "response" in result:
+                    resp_text = result["response"]
+                    # If the response is just the base64 string
+                    if len(resp_text) > 1000 and not resp_text.startswith("{"):
+                        image_base64 = resp_text.strip()
+                    # If it's wrapped in a data URI
+                    elif "data:image" in resp_text and "base64," in resp_text:
+                        image_base64 = resp_text.split("base64,")[1].split('"')[0].split("'")[0]
+
+                if not image_base64:
+                    logger.warning(
+                        f"Ollama model {self.model_name} did not return recognizable image data. "
+                        "Falling back to placeholder."
+                    )
+                    return PlaceholderGenerator().generate(prompt)
+
+                return GeneratedImage(
+                    image_base64=image_base64,
+                    image_format="png",
+                    prompt_used=prompt,
+                    width=1024,
+                    height=1024,
+                )
+
+        except Exception as e:
+            logger.error(f"Ollama image generation failed: {e}")
+            raise
+
+
 class PlaceholderGenerator(ImageGenerator):
     """Placeholder generator when no image service is available."""
 
@@ -150,11 +226,17 @@ class PlaceholderGenerator(ImageGenerator):
             GeneratedImage with a placeholder
         """
         # Create a simple 1x1 transparent PNG as placeholder
+        # This base64 represents a 1x1 transparent PNG.
+        # LinkedIn may display this as a plain colored block.
         placeholder_b64 = (
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         )
 
-        logger.warning("Using placeholder image - configure image generator for actual images")
+        logger.warning(
+            "Using 1x1 placeholder image. If you see a plain green block on social media, "
+            "it's likely because the image generator is not configured correctly or the "
+            "selected model (e.g. qwen3-vl) doesn't support image generation."
+        )
 
         return GeneratedImage(
             image_base64=placeholder_b64,
@@ -198,6 +280,12 @@ class ImageGenerationAgent:
                     self._generator = DalleGenerator()
                 except ValueError:
                     logger.warning("DALL-E unavailable (no API key), using placeholder")
+                    self._generator = PlaceholderGenerator()
+            elif self.generator_type == "ollama":
+                try:
+                    self._generator = OllamaGenerator()
+                except Exception:
+                    logger.warning("Ollama image generation unavailable, using placeholder")
                     self._generator = PlaceholderGenerator()
             else:
                 self._generator = PlaceholderGenerator()
