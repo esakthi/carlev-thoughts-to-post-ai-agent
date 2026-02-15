@@ -129,6 +129,33 @@ public class ThoughtsController {
     }
 
     /**
+     * Delete a thought.
+     *
+     * @param id     The thought ID
+     * @param userId User ID from header
+     * @return No content
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteThought(
+            @PathVariable String id,
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+        log.info("Deleting thought: {} by user: {}", id, userId);
+        thoughtsService.deleteThought(id, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Get available categories.
+     *
+     * @return List of categories
+     */
+    @GetMapping("/categories")
+    public ResponseEntity<List<String>> getCategories() {
+        log.info("Getting available categories");
+        return ResponseEntity.ok(thoughtsService.getCategories());
+    }
+
+    /**
      * Update enriched content of a thought.
      *
      * @param id      The thought ID

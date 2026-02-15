@@ -25,5 +25,7 @@ public class CreateThoughtRequest {
     @NotEmpty(message = "At least one platform must be selected")
     private List<PlatformType> platforms;
 
+    private String category;
+
     private String additionalInstructions;
 }

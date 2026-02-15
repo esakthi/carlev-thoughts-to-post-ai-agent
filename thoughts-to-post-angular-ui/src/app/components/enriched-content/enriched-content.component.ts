@@ -1,6 +1,7 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../models/thought.models';
 
 @Component({
@@ -123,13 +124,15 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
             </div>
 
             <div class="action-buttons">
-              @if (thought.status === 'ENRICHED' && currentStep() === 1) {
+              @if (currentStep() === 1) {
                 <button class="btn btn-primary" (click)="nextStep()">
-                  Next: Review Image →
+                  Next: View Image →
                 </button>
-                <button class="btn btn-secondary" (click)="reject.emit()">
-                  ✕ Reject
-                </button>
+                @if (thought.status === 'ENRICHED') {
+                  <button class="btn btn-secondary" (click)="reject.emit()">
+                    ✕ Reject
+                  </button>
+                }
               }
             </div>
           }
@@ -137,14 +140,19 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
       }
 
       <!-- Step 2: Image Review -->
-      @if (currentStep() === 2 && thought.status === 'ENRICHED') {
+      @if (currentStep() === 2 && (thought.status === 'ENRICHED' || thought.status === 'POSTED' || thought.status === 'APPROVED' || thought.status === 'FAILED')) {
         <div class="step-content fade-in">
           <!-- Generated Image -->
           @if (thought.generatedImageUrl) {
             <div class="generated-image card">
-              <h4 class="section-title">Generated Image</h4>
+              <div class="section-header">
+                <h4 class="section-title">Generated Image</h4>
+                <button class="btn-text" (click)="downloadImage()">
+                  ⬇️ Download Image
+                </button>
+              </div>
               <div class="image-container">
-                <img [src]="thought.generatedImageUrl" alt="Generated image for your post" />
+                <img [src]="getSafeImageUrl(thought.generatedImageUrl)" alt="Generated image for your post" />
               </div>
             </div>
           } @else {
@@ -191,11 +199,11 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
       }
 
       <!-- Posted Status -->
-      @if (thought.status === 'POSTED') {
+      @if (thought.status === 'POSTED' && currentStep() === 1) {
         <div class="success-message card">
           <span class="success-icon">🎉</span>
           <h3>Posted Successfully!</h3>
-          <p class="text-secondary">Your content has been shared to the selected platforms.</p>
+          <p class="text-secondary">Your content has been shared to the selected platforms. You can still view and download the image by clicking 'Next'.</p>
         </div>
       }
 
@@ -530,6 +538,8 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
   `]
 })
 export class EnrichedContentComponent {
+    private readonly sanitizer = inject(DomSanitizer);
+
     @Input({ required: true }) thought!: ThoughtResponse;
     @Input() isProcessing = false;
     @Output() approve = new EventEmitter<ApproveThoughtRequest>();
@@ -589,6 +599,21 @@ export class EnrichedContentComponent {
 
     canResubmit(): boolean {
         return this.thought.status === 'ENRICHED' || this.thought.status === 'FAILED' || this.thought.status === 'REJECTED';
+    }
+
+    getSafeImageUrl(url: string): SafeUrl {
+        return this.sanitizer.bypassSecurityTrustUrl(url);
+    }
+
+    downloadImage() {
+        if (!this.thought.generatedImageUrl) return;
+
+        const link = document.createElement('a');
+        link.href = this.thought.generatedImageUrl;
+        link.download = `post-image-${this.thought.id}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     getStatusLabel(status: string): string {

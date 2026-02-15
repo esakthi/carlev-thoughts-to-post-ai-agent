@@ -29,6 +29,7 @@ export interface ThoughtResponse {
     originalThought: string;
     enrichedContents: EnrichedContent[];
     generatedImageUrl?: string;
+    category: string;
     selectedPlatforms: PlatformType[];
     status: PostStatus;
     version: number;
@@ -44,6 +45,7 @@ export interface ThoughtResponse {
 export interface CreateThoughtRequest {
     thought: string;
     platforms: PlatformType[];
+    category: string;
     additionalInstructions?: string;
 }
 
@@ -61,6 +63,7 @@ export interface ThoughtHistory {
     actionType: string;
     performedBy: string;
     createdAt: string;
+    category: string;
     status: PostStatus;
 }
 

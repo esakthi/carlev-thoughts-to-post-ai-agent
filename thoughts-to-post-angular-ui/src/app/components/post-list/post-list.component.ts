@@ -1,7 +1,8 @@
-import { Component, Input } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ThoughtResponse, PLATFORM_CONFIG } from '../../models/thought.models';
+import { ThoughtsService } from '../../services/thoughts.service';
 
 @Component({
     selector: 'app-post-list',
@@ -17,17 +18,23 @@ import { ThoughtResponse, PLATFORM_CONFIG } from '../../models/thought.models';
       } @else {
         <div class="list-container">
           @for (thought of thoughts; track thought.id) {
-            <div class="post-item card fade-in" [routerLink]="['/view', thought.id]">
-              <div class="post-header">
-                <span class="status-badge" [ngClass]="thought.status.toLowerCase()">
-                  {{ getStatusLabel(thought.status) }}
-                </span>
-                <span class="date text-muted">{{ thought.createdAt | date:'short' }}</span>
+            <div class="post-item card fade-in">
+              <div class="post-header" [routerLink]="['/view', thought.id]">
+                <div class="status-category">
+                  <span class="status-badge" [ngClass]="thought.status.toLowerCase()">
+                    {{ getStatusLabel(thought.status) }}
+                  </span>
+                  <span class="category-badge">{{ thought.category }}</span>
+                </div>
+                <div class="header-right">
+                  <span class="date text-muted">{{ thought.createdAt | date:'short' }}</span>
+                  <button class="btn-delete" (click)="onDelete($event, thought.id)" title="Delete Post">🗑️</button>
+                </div>
               </div>
-              <div class="post-preview">
+              <div class="post-preview" [routerLink]="['/view', thought.id]">
                 <p class="thought-text text-truncate">{{ thought.originalThought }}</p>
               </div>
-              <div class="post-footer">
+              <div class="post-footer" [routerLink]="['/view', thought.id]">
                 <div class="platforms">
                   @for (platform of thought.selectedPlatforms; track platform) {
                     <span class="platform-dot" [ngClass]="platform.toLowerCase()" [title]="PLATFORM_CONFIG[platform].label"></span>
@@ -70,6 +77,44 @@ import { ThoughtResponse, PLATFORM_CONFIG } from '../../models/thought.models';
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    .status-category {
+      display: flex;
+      gap: var(--spacing-sm);
+      align-items: center;
+    }
+
+    .category-badge {
+      font-size: 0.75rem;
+      background: var(--bg-glass);
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+    }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
+      opacity: 0.6;
+
+      &:hover {
+        background: rgba(235, 51, 73, 0.1);
+        opacity: 1;
+        transform: scale(1.1);
+      }
     }
 
     .date {
@@ -128,10 +173,27 @@ import { ThoughtResponse, PLATFORM_CONFIG } from '../../models/thought.models';
   `]
 })
 export class PostListComponent {
+    private readonly thoughtsService = inject(ThoughtsService);
+
     @Input() thoughts: ThoughtResponse[] = [];
     @Input() emptyMessage = 'No posts found.';
+    @Output() deleted = new EventEmitter<string>();
 
     PLATFORM_CONFIG = PLATFORM_CONFIG;
+
+    onDelete(event: Event, id: string) {
+        event.stopPropagation();
+        if (confirm('Are you sure you want to delete this post? It will be removed from the list but kept in history.')) {
+            this.thoughtsService.deleteThought(id).subscribe({
+                next: () => {
+                    this.deleted.emit(id);
+                },
+                error: (err) => {
+                    alert('Failed to delete post: ' + err.message);
+                }
+            });
+        }
+    }
 
     getStatusLabel(status: string): string {
         const labels: Record<string, string> = {

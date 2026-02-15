@@ -40,6 +40,15 @@ import { ThoughtsService } from '../../services/thoughts.service';
       </div>
 
       <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-input" [(ngModel)]="selectedCategory" name="category" [disabled]="isLoading">
+          @for (cat of categories(); track cat) {
+            <option [value]="cat">{{ cat }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="form-group">
         <label class="form-label">Select Platforms</label>
         <div class="platforms-grid">
           @for (platform of platforms; track platform) {
@@ -212,6 +221,8 @@ export class ThoughtInputComponent implements OnInit {
 
     thought = '';
     additionalInstructions = '';
+    selectedCategory = 'Others';
+    categories = signal<string[]>(['Tech', 'Politics', 'Social', 'Others']);
     selectedPlatforms = signal<PlatformType[]>(['LINKEDIN']);
     isLinkedInAuthorized = signal(false);
     isCheckingAuth = signal(false);
@@ -220,6 +231,21 @@ export class ThoughtInputComponent implements OnInit {
 
     ngOnInit() {
         this.checkLinkedInStatus();
+        this.loadCategories();
+    }
+
+    loadCategories() {
+        this.thoughtsService.getCategories().subscribe({
+            next: (cats) => {
+                this.categories.set(cats);
+                if (cats.length > 0 && !cats.includes(this.selectedCategory)) {
+                    this.selectedCategory = cats[0];
+                }
+            },
+            error: () => {
+                // Keep defaults if failed
+            }
+        });
     }
 
     checkLinkedInStatus() {
@@ -282,6 +308,7 @@ export class ThoughtInputComponent implements OnInit {
         const request: CreateThoughtRequest = {
             thought: this.thought.trim(),
             platforms: this.selectedPlatforms(),
+            category: this.selectedCategory,
             additionalInstructions: this.additionalInstructions.trim() || undefined
         };
 
