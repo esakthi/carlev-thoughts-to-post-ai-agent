@@ -35,6 +35,8 @@ public class ThoughtsToPost {
 
     private String generatedImageUrl;
 
+    private String category;
+
     @Builder.Default
     private List<PlatformType> selectedPlatforms = new ArrayList<>();
 

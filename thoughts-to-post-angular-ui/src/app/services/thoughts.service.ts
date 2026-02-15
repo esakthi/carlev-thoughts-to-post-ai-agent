@@ -62,6 +62,20 @@ export class ThoughtsService {
     }
 
     /**
+     * Delete a thought
+     */
+    deleteThought(id: string): Observable<void> {
+        return this.http.delete<void>(`${this.apiUrl}/${id}`, { headers: this.headers });
+    }
+
+    /**
+     * Get available categories
+     */
+    getCategories(): Observable<string[]> {
+        return this.http.get<string[]>(`${this.apiUrl}/categories`, { headers: this.headers });
+    }
+
+    /**
      * Get history for a thought
      */
     getThoughtHistory(id: string): Observable<ThoughtHistory[]> {

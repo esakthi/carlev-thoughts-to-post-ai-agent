@@ -30,8 +30,11 @@ public class ThoughtsService {
 
     private final ThoughtsToPostRepository thoughtsRepository;
     private final ThoughtsToPostHistoryRepository historyRepository;
+    private final com.carlev.thoughtstopost.repository.AppConfigRepository configRepository;
     private final ThoughtsKafkaProducer kafkaProducer;
     private final SocialMediaService socialMediaService;
+
+    private static final List<String> DEFAULT_CATEGORIES = List.of("Tech", "Politics", "Social", "Others");
 
     /**
      * Create a new thought post and send it to the AI agent for enrichment.
@@ -45,10 +48,16 @@ public class ThoughtsService {
         log.info("Creating new thought for user: {}", userId);
 
         // Create the document
+        String category = request.getCategory();
+        if (category == null || category.trim().isEmpty()) {
+            category = "Others";
+        }
+
         ThoughtsToPost thought = ThoughtsToPost.builder()
                 .userId(userId)
                 .originalThought(request.getThought())
                 .selectedPlatforms(request.getPlatforms())
+                .category(category)
                 .status(PostStatus.PENDING)
                 .createdBy(userId)
                 .build();
@@ -211,6 +220,31 @@ public class ThoughtsService {
 
         log.info("Rejected thought: {}", id);
         return ThoughtResponse.fromEntity(thought);
+    }
+
+    /**
+     * Delete a thought from thoughts_to_post collection but keep it in history.
+     */
+    @Transactional
+    public void deleteThought(String id, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        // Create history entry for DELETE action
+        createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.DELETE, userId);
+
+        // Delete from repository
+        thoughtsRepository.deleteById(id);
+        log.info("Deleted thought: {} by user: {}", id, userId);
+    }
+
+    /**
+     * Get available categories from config or defaults.
+     */
+    public List<String> getCategories() {
+        return configRepository.findByKey("categories")
+                .map(com.carlev.thoughtstopost.model.AppConfig::getValue)
+                .orElse(DEFAULT_CATEGORIES);
     }
 
     /**

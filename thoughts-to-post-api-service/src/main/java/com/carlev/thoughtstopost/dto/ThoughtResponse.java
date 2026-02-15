@@ -25,6 +25,7 @@ public class ThoughtResponse {
     private String originalThought;
     private List<EnrichedContentDto> enrichedContents;
     private String generatedImageUrl;
+    private String category;
     private List<PlatformType> selectedPlatforms;
     private PostStatus status;
     private Long version;
@@ -69,12 +70,18 @@ public class ThoughtResponse {
                         .toList()
                 : List.of();
 
+        String category = entity.getCategory();
+        if (category == null || category.trim().isEmpty()) {
+            category = "Others";
+        }
+
         return ThoughtResponse.builder()
                 .id(entity.getId())
                 .userId(entity.getUserId())
                 .originalThought(entity.getOriginalThought())
                 .enrichedContents(enrichedDtos)
                 .generatedImageUrl(entity.getGeneratedImageUrl())
+                .category(category)
                 .selectedPlatforms(entity.getSelectedPlatforms())
                 .status(entity.getStatus())
                 .version(entity.getVersion())

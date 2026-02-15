@@ -56,6 +56,7 @@ public class ThoughtsToPostHistory {
     private String originalThought;
     private List<ThoughtsToPost.EnrichedContent> enrichedContents;
     private String generatedImageUrl;
+    private String category;
     private List<PlatformType> selectedPlatforms;
     private PostStatus status;
     private String errorMessage;
@@ -89,6 +90,7 @@ public class ThoughtsToPostHistory {
                 .originalThought(thought.getOriginalThought())
                 .enrichedContents(thought.getEnrichedContents())
                 .generatedImageUrl(thought.getGeneratedImageUrl())
+                .category(thought.getCategory())
                 .selectedPlatforms(thought.getSelectedPlatforms())
                 .status(thought.getStatus())
                 .errorMessage(thought.getErrorMessage())
