@@ -4,6 +4,7 @@ import { Observable, BehaviorSubject, interval, switchMap, takeWhile, tap } from
 import {
     ThoughtResponse,
     CreateThoughtRequest,
+    ApproveThoughtRequest,
     ThoughtHistory
 } from '../models/thought.models';
 
@@ -56,8 +57,8 @@ export class ThoughtsService {
     /**
      * Approve a thought and post to social media
      */
-    approveAndPost(id: string): Observable<ThoughtResponse> {
-        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/approve`, {}, { headers: this.headers });
+    approveAndPost(id: string, request: ApproveThoughtRequest): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/approve`, request, { headers: this.headers });
     }
 
     /**

@@ -31,6 +31,10 @@ public class ThoughtResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String errorMessage;
+    private String textContentComments;
+    private String imageContentComments;
+    private boolean postText;
+    private boolean postImage;
 
     /**
      * DTO for enriched content.
@@ -77,6 +81,10 @@ public class ThoughtResponse {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .errorMessage(entity.getErrorMessage())
+                .textContentComments(entity.getTextContentComments())
+                .imageContentComments(entity.getImageContentComments())
+                .postText(entity.isPostText())
+                .postImage(entity.isPostImage())
                 .build();
     }
 }

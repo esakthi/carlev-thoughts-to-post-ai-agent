@@ -98,7 +98,7 @@ public class ThoughtsService {
      * Approve a thought and post to social media.
      */
     @Transactional
-    public ThoughtResponse approveAndPost(String id, String userId) {
+    public ThoughtResponse approveAndPost(String id, com.carlev.thoughtstopost.dto.ApproveThoughtRequest request, String userId) {
         ThoughtsToPost thought = thoughtsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
@@ -106,9 +106,14 @@ public class ThoughtsService {
             throw new RuntimeException("Thought is not ready for approval. Status: " + thought.getStatus());
         }
 
-        // Update status to approved
+        // Update status to approved and store user choices/comments
         thought.setStatus(PostStatus.APPROVED);
         thought.setUpdatedBy(userId);
+        thought.setTextContentComments(request.getTextContentComments());
+        thought.setImageContentComments(request.getImageContentComments());
+        thought.setPostText(request.isPostText());
+        thought.setPostImage(request.isPostImage());
+
         thought = thoughtsRepository.save(thought);
         createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.APPROVE, userId);
 

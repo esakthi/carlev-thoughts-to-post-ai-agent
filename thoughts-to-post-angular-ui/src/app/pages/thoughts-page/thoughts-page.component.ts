@@ -7,6 +7,7 @@ import { EnrichedContentComponent } from '../../components/enriched-content/enri
 import {
     ThoughtResponse,
     CreateThoughtRequest,
+    ApproveThoughtRequest,
     PlatformType
 } from '../../models/thought.models';
 
@@ -38,7 +39,7 @@ import {
             <app-enriched-content
               [thought]="currentThought()!"
               [isProcessing]="isPolling()"
-              (approve)="onApprove()"
+              (approve)="onApprove($event)"
               (reject)="onReject()"
             />
           </div>
@@ -202,13 +203,13 @@ export class ThoughtsPageComponent {
         });
     }
 
-    onApprove() {
+    onApprove(request: ApproveThoughtRequest) {
         const thought = this.currentThought();
         if (!thought) return;
 
         this.isLoading.set(true);
 
-        this.thoughtsService.approveAndPost(thought.id).subscribe({
+        this.thoughtsService.approveAndPost(thought.id, request).subscribe({
             next: (updated) => {
                 this.currentThought.set(updated);
                 this.isLoading.set(false);

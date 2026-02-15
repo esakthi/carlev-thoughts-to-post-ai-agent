@@ -58,6 +58,16 @@ public class ThoughtsToPost {
 
     private String errorMessage;
 
+    private String textContentComments;
+
+    private String imageContentComments;
+
+    @Builder.Default
+    private boolean postText = true;
+
+    @Builder.Default
+    private boolean postImage = true;
+
     /**
      * Nested class for platform-specific enriched content.
      */
