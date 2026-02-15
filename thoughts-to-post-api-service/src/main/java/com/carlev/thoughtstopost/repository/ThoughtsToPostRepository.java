@@ -24,6 +24,11 @@ public interface ThoughtsToPostRepository extends MongoRepository<ThoughtsToPost
     List<ThoughtsToPost> findByUserIdAndStatus(String userId, PostStatus status);
 
     /**
+     * Find all thoughts by user ID and status not equal to.
+     */
+    List<ThoughtsToPost> findByUserIdAndStatusNot(String userId, PostStatus status);
+
+    /**
      * Find all thoughts by status.
      */
     List<ThoughtsToPost> findByStatus(PostStatus status);

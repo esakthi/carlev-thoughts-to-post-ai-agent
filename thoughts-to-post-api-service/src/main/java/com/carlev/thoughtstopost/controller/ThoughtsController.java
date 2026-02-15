@@ -3,6 +3,7 @@ package com.carlev.thoughtstopost.controller;
 import com.carlev.thoughtstopost.dto.ApproveThoughtRequest;
 import com.carlev.thoughtstopost.dto.CreateThoughtRequest;
 import com.carlev.thoughtstopost.dto.ThoughtResponse;
+import com.carlev.thoughtstopost.model.PostStatus;
 import com.carlev.thoughtstopost.model.ThoughtsToPostHistory;
 import com.carlev.thoughtstopost.service.ThoughtsService;
 import jakarta.validation.Valid;
@@ -56,16 +57,27 @@ public class ThoughtsController {
     }
 
     /**
-     * Get all thoughts for a user.
+     * Get all thoughts for a user, optionally filtered by status.
      * 
-     * @param userId User ID from header
+     * @param status    Optional status to filter by
+     * @param notStatus Optional status to exclude
+     * @param userId    User ID from header
      * @return List of thought responses
      */
     @GetMapping
     public ResponseEntity<List<ThoughtResponse>> getUserThoughts(
+            @RequestParam(required = false) PostStatus status,
+            @RequestParam(required = false) PostStatus notStatus,
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
-        log.info("Getting thoughts for user: {}", userId);
-        List<ThoughtResponse> responses = thoughtsService.getUserThoughts(userId);
+        log.info("Getting thoughts for user: {} with filter status: {}, notStatus: {}", userId, status, notStatus);
+        List<ThoughtResponse> responses;
+        if (status != null) {
+            responses = thoughtsService.getUserThoughtsByStatus(userId, status);
+        } else if (notStatus != null) {
+            responses = thoughtsService.getUserThoughtsByStatusNot(userId, notStatus);
+        } else {
+            responses = thoughtsService.getUserThoughts(userId);
+        }
         return ResponseEntity.ok(responses);
     }
 
@@ -113,6 +125,43 @@ public class ThoughtsController {
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
         log.info("Rejecting thought: {} by user: {}", id, userId);
         ThoughtResponse response = thoughtsService.rejectThought(id, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Update enriched content of a thought.
+     *
+     * @param id      The thought ID
+     * @param request The thought response DTO with updated content
+     * @param userId  User ID from header
+     * @return Updated thought response
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ThoughtResponse> updateThought(
+            @PathVariable String id,
+            @RequestBody ThoughtResponse request,
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+        log.info("Updating thought: {} by user: {}", id, userId);
+        ThoughtResponse response = thoughtsService.updateEnrichedContent(id, request, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Resubmit a thought for re-enrichment.
+     *
+     * @param id      The thought ID
+     * @param request Map containing additionalInstructions
+     * @param userId  User ID from header
+     * @return Updated thought response
+     */
+    @PostMapping("/{id}/re-enrich")
+    public ResponseEntity<ThoughtResponse> reenrichThought(
+            @PathVariable String id,
+            @RequestBody java.util.Map<String, String> request,
+            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+        String instructions = request.get("additionalInstructions");
+        log.info("Re-enriching thought: {} by user: {}", id, userId);
+        ThoughtResponse response = thoughtsService.reenrichThought(id, instructions, userId);
         return ResponseEntity.ok(response);
     }
 
