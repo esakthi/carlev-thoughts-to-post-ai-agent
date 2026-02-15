@@ -48,6 +48,20 @@ export class ThoughtsService {
     }
 
     /**
+     * Get thoughts by status
+     */
+    getThoughtsByStatus(status: string): Observable<ThoughtResponse[]> {
+        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?status=${status}`, { headers: this.headers });
+    }
+
+    /**
+     * Get thoughts excluding a status
+     */
+    getThoughtsExcludingStatus(notStatus: string): Observable<ThoughtResponse[]> {
+        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?notStatus=${notStatus}`, { headers: this.headers });
+    }
+
+    /**
      * Get history for a thought
      */
     getThoughtHistory(id: string): Observable<ThoughtHistory[]> {
@@ -66,6 +80,20 @@ export class ThoughtsService {
      */
     rejectThought(id: string): Observable<ThoughtResponse> {
         return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/reject`, {}, { headers: this.headers });
+    }
+
+    /**
+     * Update enriched content of a thought
+     */
+    updateThought(id: string, thought: ThoughtResponse): Observable<ThoughtResponse> {
+        return this.http.put<ThoughtResponse>(`${this.apiUrl}/${id}`, thought, { headers: this.headers });
+    }
+
+    /**
+     * Resubmit a thought for re-enrichment
+     */
+    reenrichThought(id: string, additionalInstructions: string): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/re-enrich`, { additionalInstructions }, { headers: this.headers });
     }
 
     /**
