@@ -3,3 +3,14 @@ application-dev.yml
 *.local.yml
 .env
 .env.local
+
+# Gradle/Java
+.gradle/
+build/
+target/
+bin/
+.settings/
+.classpath
+.project
+*.class
+*.jar

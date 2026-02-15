@@ -1,86 +1,54 @@
-version: '3.8'
 
 services:
-  # MongoDB for data persistence
-  mongodb:
-    image: mongo:7.0
-    container_name: thoughts-mongodb
+  # API Service (Spring Boot)
+  api-service:
+    build:
+      context: ./thoughts-to-post-api-service
+      dockerfile: Dockerfile
+    container_name: thoughts-api-service
     ports:
-      - "27017:27017"
+      - "8080:8080"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin123
-      MONGO_INITDB_DATABASE: thoughtstopost
-    volumes:
-      - mongodb_data:/data/db
+      # Use GATEWAY_IP to connect to MongoDB on the Windows host
+      - SPRING_DATA_MONGODB_URI=mongodb://admin:admin123@${GATEWAY_IP}:27017/thoughtstopost?authSource=admin
+      # Use WSL_IP for Kafka (native service in WSL)
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=${WSL_IP}:9092
+      - LINKEDIN_CLIENT_ID=${LINKEDIN_CLIENT_ID:-your-client-id}
+      - LINKEDIN_CLIENT_SECRET=${LINKEDIN_CLIENT_SECRET:-your-client-secret}
+      - LINKEDIN_REDIRECT_URI=http://localhost:8080/api/oauth/linkedin/callback
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - thoughts-network
 
-  # Zookeeper for Kafka
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: thoughts-zookeeper
-    ports:
-      - "2181:2181"
+  # AI Agent (Python)
+  ai-agent:
+    build:
+      context: ./thoughts-to-post-ai-agent
+      dockerfile: Dockerfile
+    container_name: thoughts-ai-agent
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      - KAFKA_BOOTSTRAP_SERVERS=${WSL_IP}:9092
+      - KAFKA_TOPIC_REQUESTS=thoughts-requests
+      - KAFKA_TOPIC_RESPONSES=thoughts-responses
+      - OLLAMA_HOST=http://${WSL_IP}:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - thoughts-network
 
-  # Kafka message broker
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: thoughts-kafka
+  # Angular UI
+  angular-ui:
+    build:
+      context: ./thoughts-to-post-angular-ui
+      dockerfile: Dockerfile
+    container_name: thoughts-angular-ui
+    ports:
+      - "4200:80"
     depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "29092:29092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      - api-service
     networks:
       - thoughts-network
-
-  # Kafka UI for monitoring (optional but helpful)
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: thoughts-kafka-ui
-    depends_on:
-      - kafka
-    ports:
-      - "8090:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
-    networks:
-      - thoughts-network
-
-  # MongoDB Express UI for database management (optional)
-  mongo-express:
-    image: mongo-express:1.0.0
-    container_name: thoughts-mongo-express
-    depends_on:
-      - mongodb
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: admin123
-      ME_CONFIG_MONGODB_URL: mongodb://admin:admin123@mongodb:27017/
-      ME_CONFIG_BASICAUTH: "false"
-    networks:
-      - thoughts-network
-
-volumes:
-  mongodb_data:
 
 networks:
   thoughts-network:
