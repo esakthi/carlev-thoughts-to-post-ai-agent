@@ -87,8 +87,21 @@ public class LinkedInService {
         String accessToken = getUserAccessToken(thought.getUserId());
         String personUrn = getPersonUrn(thought.getUserId());
 
+        // Prepare the post body
+        String postBody = "";
+        if (thought.isPostText()) {
+            postBody = linkedInContent.getBody();
+            // Incorporate user comments if provided
+            if (thought.getTextContentComments() != null && !thought.getTextContentComments().isBlank()) {
+                postBody = thought.getTextContentComments() + "\n\n" + postBody;
+            }
+        }
+
+        // Prepare the image
+        String imageBase64 = thought.isPostImage() ? thought.getGeneratedImageBase64() : null;
+
         // Create the post using LinkedIn's Share API
-        return createShare(accessToken, personUrn, linkedInContent, thought.getGeneratedImageBase64());
+        return createShare(accessToken, personUrn, postBody, linkedInContent.getHashtags(), imageBase64);
     }
 
     /**
@@ -218,7 +231,7 @@ public class LinkedInService {
     /**
      * Create a share (post) on LinkedIn.
      */
-    private String createShare(String accessToken, String personUrn, ThoughtsToPost.EnrichedContent content, String imageBase64) {
+    private String createShare(String accessToken, String personUrn, String body, java.util.List<String> hashtags, String imageBase64) {
         String assetUrn = null;
 
         if (imageBase64 != null && !imageBase64.isEmpty()) {
@@ -242,17 +255,28 @@ public class LinkedInService {
         }
 
         // Build the post content
-        String postText = content.getBody();
-        if (content.getHashtags() != null && !content.getHashtags().isEmpty()) {
-            postText += "\n\n" + content.getHashtags().stream()
+        String postText = body;
+        if (hashtags != null && !hashtags.isEmpty()) {
+            String hashtagLine = hashtags.stream()
                     .map(h -> "#" + h)
                     .reduce((a, b) -> a + " " + b)
                     .orElse("");
+            if (postText != null && !postText.isBlank()) {
+                postText += "\n\n" + hashtagLine;
+            } else {
+                postText = hashtagLine;
+            }
+        }
+
+        if ((postText == null || postText.isBlank()) && assetUrn == null) {
+            log.warn("Both text and image are empty/disabled. LinkedIn may reject this post.");
+            postText = "Shared via Thoughts-to-Post"; // Fallback
         }
 
         Map<String, Object> shareRequest = buildShareRequest(postText, assetUrn, personUrn);
 
-        log.info("Creating LinkedIn share for content: {}...", postText.substring(0, Math.min(50, postText.length())));
+        log.info("Creating LinkedIn share for content: {}...",
+            postText != null ? postText.substring(0, Math.min(50, postText.length())) : "empty");
 
         WebClient client = webClientBuilder
                 .baseUrl(LINKEDIN_API_URL)

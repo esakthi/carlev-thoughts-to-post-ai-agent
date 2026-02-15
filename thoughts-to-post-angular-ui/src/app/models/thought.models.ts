@@ -35,12 +35,23 @@ export interface ThoughtResponse {
     createdAt: string;
     updatedAt: string;
     errorMessage?: string;
+    textContentComments?: string;
+    imageContentComments?: string;
+    postText: boolean;
+    postImage: boolean;
 }
 
 export interface CreateThoughtRequest {
     thought: string;
     platforms: PlatformType[];
     additionalInstructions?: string;
+}
+
+export interface ApproveThoughtRequest {
+    textContentComments?: string;
+    imageContentComments?: string;
+    postText: boolean;
+    postImage: boolean;
 }
 
 export interface ThoughtHistory {

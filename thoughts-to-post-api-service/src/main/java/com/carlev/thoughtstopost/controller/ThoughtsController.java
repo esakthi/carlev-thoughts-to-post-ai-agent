@@ -1,5 +1,6 @@
 package com.carlev.thoughtstopost.controller;
 
+import com.carlev.thoughtstopost.dto.ApproveThoughtRequest;
 import com.carlev.thoughtstopost.dto.CreateThoughtRequest;
 import com.carlev.thoughtstopost.dto.ThoughtResponse;
 import com.carlev.thoughtstopost.model.ThoughtsToPostHistory;
@@ -84,16 +85,18 @@ public class ThoughtsController {
     /**
      * Approve a thought and post to social media.
      * 
-     * @param id     The thought ID
-     * @param userId User ID from header
+     * @param id      The thought ID
+     * @param request The approval request with comments and choices
+     * @param userId  User ID from header
      * @return Updated thought response
      */
     @PostMapping("/{id}/approve")
     public ResponseEntity<ThoughtResponse> approveAndPost(
             @PathVariable String id,
+            @RequestBody ApproveThoughtRequest request,
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
         log.info("Approving and posting thought: {} by user: {}", id, userId);
-        ThoughtResponse response = thoughtsService.approveAndPost(id, userId);
+        ThoughtResponse response = thoughtsService.approveAndPost(id, request, userId);
         return ResponseEntity.ok(response);
     }
 

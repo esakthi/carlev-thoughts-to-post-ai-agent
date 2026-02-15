@@ -1,11 +1,12 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ThoughtResponse, PLATFORM_CONFIG, EnrichedContent } from '../../models/thought.models';
+import { FormsModule } from '@angular/forms';
+import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../models/thought.models';
 
 @Component({
     selector: 'app-enriched-content',
     standalone: true,
-    imports: [CommonModule],
+    imports: [CommonModule, FormsModule],
     template: `
     <div class="enriched-container">
       <!-- Status Header -->
@@ -24,60 +25,134 @@ import { ThoughtResponse, PLATFORM_CONFIG, EnrichedContent } from '../../models/
         }
       </div>
 
-      <!-- Original Thought -->
-      <div class="original-thought card-glass">
-        <h4 class="section-title">Original Thought</h4>
-        <p>{{ thought.originalThought }}</p>
-      </div>
-
-      <!-- Generated Image -->
-      @if (thought.generatedImageUrl) {
-        <div class="generated-image card">
-          <h4 class="section-title">Generated Image</h4>
-          <div class="image-container">
-            <img [src]="thought.generatedImageUrl" alt="Generated image for your post" />
+      @if (thought.status === 'ENRICHED') {
+        <!-- Wizard Progress -->
+        <div class="wizard-progress">
+          <div class="wizard-step" [class.active]="currentStep() === 1" [class.completed]="currentStep() > 1">
+            <span class="step-num">1</span>
+            <span class="step-label">Review Text</span>
+          </div>
+          <div class="wizard-line"></div>
+          <div class="wizard-step" [class.active]="currentStep() === 2" [class.completed]="currentStep() > 2">
+            <span class="step-num">2</span>
+            <span class="step-label">Review Image</span>
           </div>
         </div>
       }
 
-      <!-- Enriched Content by Platform -->
-      @if ((thought.enrichedContents?.length ?? 0) > 0) {
-        <div class="enriched-content">
-          <h4 class="section-title">Enriched Content</h4>
-          @for (content of thought.enrichedContents; track content.platform) {
-            <div class="platform-content card">
-              <div class="platform-header">
-                <span class="platform-badge" [ngClass]="content.platform.toLowerCase()">
-                  {{ PLATFORM_CONFIG[content.platform].label }}
-                </span>
-                <span class="char-count text-muted">
-                  {{ content.characterCount }} characters
-                </span>
-              </div>
-              <div class="content-body">
-                <p class="content-text">{{ content.body }}</p>
-              </div>
-              @if ((content.hashtags?.length ?? 0) > 0) {
-                <div class="hashtags">
-                  @for (tag of content.hashtags; track tag) {
-                    <span class="hashtag">#{{ tag }}</span>
+      <!-- Step 1: Text Review -->
+      @if (currentStep() === 1 || thought.status !== 'ENRICHED') {
+        <div class="step-content fade-in">
+          <!-- Original Thought -->
+          <div class="original-thought card-glass">
+            <h4 class="section-title">Original Thought</h4>
+            <p>{{ thought.originalThought }}</p>
+          </div>
+
+          <!-- Enriched Content by Platform -->
+          @if ((thought.enrichedContents?.length ?? 0) > 0) {
+            <div class="enriched-content">
+              <h4 class="section-title">Enriched Content</h4>
+              @for (content of thought.enrichedContents; track content.platform) {
+                <div class="platform-content card">
+                  <div class="platform-header">
+                    <span class="platform-badge" [ngClass]="content.platform.toLowerCase()">
+                      {{ PLATFORM_CONFIG[content.platform].label }}
+                    </span>
+                    <span class="char-count text-muted">
+                      {{ content.characterCount }} characters
+                    </span>
+                  </div>
+                  <div class="content-body">
+                    <p class="content-text">{{ content.body }}</p>
+                  </div>
+                  @if ((content.hashtags?.length ?? 0) > 0) {
+                    <div class="hashtags">
+                      @for (tag of content.hashtags; track tag) {
+                        <span class="hashtag">#{{ tag }}</span>
+                      }
+                    </div>
                   }
                 </div>
               }
             </div>
           }
+
+          @if (thought.status === 'ENRICHED') {
+            <!-- User Comments for Text -->
+            <div class="user-comments card">
+              <h4 class="section-title">Your Comments on Text</h4>
+              <textarea
+                class="form-control"
+                [(ngModel)]="textContentComments"
+                placeholder="Add any specific comments or changes for the text content..."
+                rows="3"
+              ></textarea>
+            </div>
+
+            <div class="action-buttons">
+              <button class="btn btn-primary" (click)="nextStep()">
+                Next: Review Image →
+              </button>
+              <button class="btn btn-secondary" (click)="reject.emit()">
+                ✕ Reject
+              </button>
+            </div>
+          }
         </div>
       }
 
-      <!-- Action Buttons -->
-      @if (thought.status === 'ENRICHED') {
-        <div class="action-buttons">
-          <button class="btn btn-success" (click)="approve.emit()">
-            ✓ Approve & Post
-          </button>
-          <button class="btn btn-secondary" (click)="reject.emit()">
-            ✕ Reject
-          </button>
+      <!-- Step 2: Image Review -->
+      @if (currentStep() === 2 && thought.status === 'ENRICHED') {
+        <div class="step-content fade-in">
+          <!-- Generated Image -->
+          @if (thought.generatedImageUrl) {
+            <div class="generated-image card">
+              <h4 class="section-title">Generated Image</h4>
+              <div class="image-container">
+                <img [src]="thought.generatedImageUrl" alt="Generated image for your post" />
+              </div>
+            </div>
+          } @else {
+            <div class="no-image card-glass">
+              <p class="text-muted">No image was generated for this thought.</p>
+            </div>
+          }
+
+          <!-- User Comments for Image -->
+          <div class="user-comments card">
+            <h4 class="section-title">Your Comments on Image</h4>
+            <textarea
+              class="form-control"
+              [(ngModel)]="imageContentComments"
+              placeholder="Add any specific comments or changes for the image..."
+              rows="3"
+            ></textarea>
+          </div>
+
+          <!-- Post Options -->
+          <div class="post-options card">
+            <h4 class="section-title">Post Options</h4>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="postText" />
+                <span>Post Text Content</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="postImage" [disabled]="!thought.generatedImageUrl" />
+                <span>Post Image</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="action-buttons">
+            <button class="btn btn-secondary" (click)="prevStep()">
+              ← Back
+            </button>
+            <button class="btn btn-success" (click)="onApprove()" [disabled]="!postText && !postImage">
+              ✓ Approve & Post
+            </button>
+          </div>
         </div>
       }
 
@@ -201,9 +276,124 @@ import { ThoughtResponse, PLATFORM_CONFIG, EnrichedContent } from '../../models/
       font-weight: 500;
     }
 
+    .wizard-progress {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacing-md);
+      margin-bottom: var(--spacing-xl);
+      padding: var(--spacing-md);
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+    }
+
+    .wizard-step {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      opacity: 0.5;
+      transition: all 0.3s ease;
+
+      &.active {
+        opacity: 1;
+        color: var(--primary-color);
+        font-weight: 600;
+
+        .step-num {
+          background: var(--primary-gradient);
+          color: white;
+          border-color: transparent;
+        }
+      }
+
+      &.completed {
+        opacity: 0.8;
+        color: var(--success-color);
+
+        .step-num {
+          background: var(--success-color);
+          color: white;
+          border-color: transparent;
+        }
+      }
+    }
+
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+    }
+
+    .wizard-line {
+      flex: 0 0 40px;
+      height: 2px;
+      background: var(--border-color);
+    }
+
+    .user-comments {
+      textarea {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        color: var(--text-primary);
+        padding: var(--spacing-md);
+        font-family: inherit;
+        resize: vertical;
+
+        &:focus {
+          outline: none;
+          border-color: var(--primary-color);
+          background: rgba(255, 255, 255, 0.08);
+        }
+      }
+    }
+
+    .post-options {
+      .checkbox-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+      }
+
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        cursor: pointer;
+
+        input[type="checkbox"] {
+          width: 20px;
+          height: 20px;
+          cursor: pointer;
+        }
+
+        span {
+          font-size: 1rem;
+        }
+
+        &[disabled] {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+    }
+
+    .no-image {
+      padding: var(--spacing-xl);
+      text-align: center;
+    }
+
     .action-buttons {
       display: flex;
       gap: var(--spacing-md);
+      margin-top: var(--spacing-md);
 
       .btn {
         flex: 1;
@@ -242,10 +432,35 @@ import { ThoughtResponse, PLATFORM_CONFIG, EnrichedContent } from '../../models/
 export class EnrichedContentComponent {
     @Input({ required: true }) thought!: ThoughtResponse;
     @Input() isProcessing = false;
-    @Output() approve = new EventEmitter<void>();
+    @Output() approve = new EventEmitter<ApproveThoughtRequest>();
     @Output() reject = new EventEmitter<void>();
 
+    currentStep = signal(1);
+
+    // Form state
+    textContentComments = '';
+    imageContentComments = '';
+    postText = true;
+    postImage = true;
+
     PLATFORM_CONFIG = PLATFORM_CONFIG;
+
+    nextStep() {
+        this.currentStep.set(2);
+    }
+
+    prevStep() {
+        this.currentStep.set(1);
+    }
+
+    onApprove() {
+        this.approve.emit({
+            textContentComments: this.textContentComments,
+            imageContentComments: this.imageContentComments,
+            postText: this.postText,
+            postImage: this.postImage
+        });
+    }
 
     getStatusLabel(status: string): string {
         const labels: Record<string, string> = {
