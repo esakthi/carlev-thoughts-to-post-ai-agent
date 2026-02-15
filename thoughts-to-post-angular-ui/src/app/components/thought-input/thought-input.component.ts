@@ -1,7 +1,8 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG } from '../../models/thought.models';
+import { ThoughtsService } from '../../services/thoughts.service';
 
 @Component({
     selector: 'app-thought-input',
@@ -9,6 +10,22 @@ import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG } from '../../model
     imports: [CommonModule, FormsModule],
     template: `
     <form (ngSubmit)="onSubmit()" #thoughtForm="ngForm">
+      <!-- LinkedIn Auth Prompt -->
+      @if (selectedPlatforms().includes('LINKEDIN') && !isLinkedInAuthorized()) {
+        <div class="auth-alert fade-in">
+          <div class="auth-info">
+            <span class="auth-icon">🔐</span>
+            <div>
+              <strong>LinkedIn Access Required</strong>
+              <p>Authorize this app to post to your LinkedIn profile.</p>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="connectLinkedIn()" [disabled]="isCheckingAuth()">
+            {{ isCheckingAuth() ? 'Checking...' : 'Connect LinkedIn' }}
+          </button>
+        </div>
+      }
+
       <div class="form-group">
         <label class="form-label">Your Thought or Topic</label>
         <textarea
@@ -66,7 +83,7 @@ import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG } from '../../model
       <button 
         type="submit" 
         class="btn btn-primary submit-btn"
-        [disabled]="!thought.trim() || selectedPlatforms().length === 0 || isLoading"
+        [disabled]="!thought.trim() || selectedPlatforms().length === 0 || isLoading || (selectedPlatforms().includes('LINKEDIN') && !isLinkedInAuthorized())"
       >
         @if (isLoading) {
           <span class="spinner"></span>
@@ -152,17 +169,84 @@ import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG } from '../../model
       padding: var(--spacing-lg);
       font-size: 1rem;
     }
+
+    .auth-alert {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(102, 126, 234, 0.1);
+      border: 1px solid rgba(102, 126, 234, 0.3);
+      border-radius: var(--radius-md);
+      padding: var(--spacing-md) var(--spacing-lg);
+      margin-bottom: var(--spacing-lg);
+      gap: var(--spacing-md);
+
+      .auth-info {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+
+        strong {
+          display: block;
+          font-size: 0.9rem;
+        }
+
+        p {
+          font-size: 0.8rem;
+          color: var(--text-secondary);
+          margin: 0;
+        }
+      }
+
+      .auth-icon {
+        font-size: 1.5rem;
+      }
+    }
   `]
 })
-export class ThoughtInputComponent {
+export class ThoughtInputComponent implements OnInit {
+    private readonly thoughtsService = inject(ThoughtsService);
+
     @Input() isLoading = false;
     @Output() submitThought = new EventEmitter<CreateThoughtRequest>();
 
     thought = '';
     additionalInstructions = '';
     selectedPlatforms = signal<PlatformType[]>(['LINKEDIN']);
+    isLinkedInAuthorized = signal(false);
+    isCheckingAuth = signal(false);
 
     platforms: PlatformType[] = ['LINKEDIN', 'FACEBOOK', 'INSTAGRAM'];
+
+    ngOnInit() {
+        this.checkLinkedInStatus();
+    }
+
+    checkLinkedInStatus() {
+        this.isCheckingAuth.set(true);
+        this.thoughtsService.getLinkedInStatus().subscribe({
+            next: (status) => {
+                this.isLinkedInAuthorized.set(status.authorized);
+                this.isCheckingAuth.set(false);
+            },
+            error: () => {
+                this.isLinkedInAuthorized.set(false);
+                this.isCheckingAuth.set(false);
+            }
+        });
+    }
+
+    connectLinkedIn() {
+        this.thoughtsService.getLinkedInAuthUrl().subscribe({
+            next: (response) => {
+                // Redirect to LinkedIn
+                window.location.href = response.authorizationUrl;
+            },
+            error: (err) => {
+                alert('Failed to get authorization URL: ' + err.message);
+            }
+        });
+    }
 
     isPlatformEnabled(platform: PlatformType): boolean {
         // Only LinkedIn is implemented for now

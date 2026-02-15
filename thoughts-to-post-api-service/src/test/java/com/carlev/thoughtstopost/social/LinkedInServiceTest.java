@@ -2,6 +2,7 @@ package com.carlev.thoughtstopost.social;
 
 import com.carlev.thoughtstopost.model.PlatformType;
 import com.carlev.thoughtstopost.model.ThoughtsToPost;
+import com.carlev.thoughtstopost.repository.UserAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +46,9 @@ class LinkedInServiceTest {
     @Mock
     private WebClient.ResponseSpec responseSpec;
 
+    @Mock
+    private UserAccountRepository userAccountRepository;
+
     @InjectMocks
     private LinkedInService linkedInService;
 
@@ -53,6 +57,10 @@ class LinkedInServiceTest {
         ReflectionTestUtils.setField(linkedInService, "clientId", "test-client-id");
         ReflectionTestUtils.setField(linkedInService, "clientSecret", "test-client-secret");
         ReflectionTestUtils.setField(linkedInService, "configuredUserUrn", "urn:li:person:test-user");
+        ReflectionTestUtils.setField(linkedInService, "configuredAccessToken", "test-access-token");
+
+        // Mock repository
+        lenient().when(userAccountRepository.findById(anyString())).thenReturn(java.util.Optional.empty());
 
         // Mock WebClient.Builder
         lenient().when(webClientBuilder.baseUrl(anyString())).thenReturn(webClientBuilder);

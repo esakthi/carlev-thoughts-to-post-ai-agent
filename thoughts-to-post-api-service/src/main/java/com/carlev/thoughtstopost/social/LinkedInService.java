@@ -2,22 +2,26 @@ package com.carlev.thoughtstopost.social;
 
 import com.carlev.thoughtstopost.model.PlatformType;
 import com.carlev.thoughtstopost.model.ThoughtsToPost;
+import com.carlev.thoughtstopost.model.UserAccount;
+import com.carlev.thoughtstopost.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
- * LinkedIn API v2 integration service.
- * 
- * TODO: Implement OAuth 2.0 flow for user authentication
- * TODO: Store and refresh access tokens per user
+ * LinkedIn API integration service.
  */
 @Service
 @RequiredArgsConstructor
@@ -40,6 +44,7 @@ public class LinkedInService {
     private String configuredUserUrn;
 
     private final WebClient.Builder webClientBuilder;
+    private final UserAccountRepository userAccountRepository;
 
     // LinkedIn API base URL
     private static final String LINKEDIN_API_URL = "https://api.linkedin.com/v2";
@@ -49,9 +54,16 @@ public class LinkedInService {
      */
     public boolean isConfigured() {
         return clientId != null && !clientId.isEmpty() &&
-                clientSecret != null && !clientSecret.isEmpty() &&
-                configuredAccessToken != null && !configuredAccessToken.isEmpty() &&
-                configuredUserUrn != null && !configuredUserUrn.isEmpty();
+                clientSecret != null && !clientSecret.isEmpty();
+    }
+
+    /**
+     * Check if a specific user has authorized LinkedIn.
+     */
+    public boolean isUserAuthorized(String userId) {
+        return userAccountRepository.findById(userId)
+                .map(account -> account.getTokens().containsKey(PlatformType.LINKEDIN))
+                .orElse(false) || (configuredAccessToken != null && !configuredAccessToken.isEmpty());
     }
 
     /**
@@ -63,7 +75,7 @@ public class LinkedInService {
     public String post(ThoughtsToPost thought) {
         if (!isConfigured()) {
             throw new RuntimeException(
-                    "LinkedIn is not configured. Set LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, LINKEDIN_ACCESS_TOKEN, and LINKEDIN_USER_URN.");
+                    "LinkedIn is not configured. Set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET.");
         }
 
         // Get LinkedIn-specific content
@@ -72,11 +84,11 @@ public class LinkedInService {
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("No LinkedIn content found"));
 
-        // TODO: Get user's LinkedIn access token (requires OAuth implementation)
         String accessToken = getUserAccessToken(thought.getUserId());
+        String personUrn = getPersonUrn(thought.getUserId());
 
         // Create the post using LinkedIn's Share API
-        return createShare(accessToken, linkedInContent, thought.getGeneratedImageBase64());
+        return createShare(accessToken, personUrn, linkedInContent, thought.getGeneratedImageBase64());
     }
 
     /**
@@ -93,47 +105,120 @@ public class LinkedInService {
 
     /**
      * Exchange authorization code for access token.
-     * 
-     * TODO: Implement actual OAuth flow
      */
-    public Map<String, String> exchangeCodeForToken(String authorizationCode) {
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> exchangeCodeForToken(String authorizationCode) {
         WebClient client = webClientBuilder.baseUrl("https://www.linkedin.com").build();
 
-        // This is a placeholder - actual implementation would make the OAuth call
-        log.info("Exchanging authorization code for access token");
+        log.info("Exchanging authorization code for LinkedIn access token");
 
-        // TODO: Make actual POST request to /oauth/v2/accessToken
-        Map<String, String> result = new HashMap<>();
-        result.put("access_token", "placeholder_token");
-        result.put("expires_in", "5184000");
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("grant_type", "authorization_code");
+        formData.add("code", authorizationCode);
+        formData.add("client_id", clientId);
+        formData.add("client_secret", clientSecret);
+        formData.add("redirect_uri", redirectUri);
 
-        return result;
+        return client.post()
+                .uri("/oauth/v2/accessToken")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(formData))
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    /**
+     * Get member profile information.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getMemberInfo(String accessToken) {
+        WebClient client = webClientBuilder.baseUrl(LINKEDIN_API_URL).build();
+
+        return client.get()
+                .uri("/userinfo")
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    /**
+     * Save or update user's LinkedIn token.
+     */
+    public void saveUserAccount(String userId, Map<String, Object> tokenResponse, Map<String, Object> memberInfo) {
+        String accessToken = (String) tokenResponse.get("access_token");
+        Integer expiresIn = (Integer) tokenResponse.get("expires_in");
+        String refreshToken = (String) tokenResponse.get("refresh_token");
+        String scope = (String) tokenResponse.get("scope");
+
+        // OpenID Connect 'sub' is used as person ID
+        String sub = (String) memberInfo.get("sub");
+        String personUrn = "urn:li:person:" + sub;
+
+        UserAccount account = userAccountRepository.findById(userId)
+                .orElse(UserAccount.builder().userId(userId).build());
+
+        UserAccount.SocialToken token = UserAccount.SocialToken.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .expiresAt(LocalDateTime.now().plusSeconds(expiresIn != null ? expiresIn : 5184000))
+                .scope(scope)
+                .personUrn(personUrn)
+                .additionalData(new HashMap<>())
+                .build();
+
+        if (memberInfo.containsKey("name")) {
+            token.getAdditionalData().put("name", (String) memberInfo.get("name"));
+        }
+        if (memberInfo.containsKey("email")) {
+            token.getAdditionalData().put("email", (String) memberInfo.get("email"));
+        }
+
+        account.getTokens().put(PlatformType.LINKEDIN, token);
+        userAccountRepository.save(account);
+
+        log.info("Saved LinkedIn token for user: {} with personUrn: {}", userId, personUrn);
     }
 
     /**
      * Get user's stored access token.
-     * 
-     * TODO: Retrieve from database/secure storage
      */
     private String getUserAccessToken(String userId) {
+        Optional<UserAccount> account = userAccountRepository.findById(userId);
+        if (account.isPresent() && account.get().getTokens().containsKey(PlatformType.LINKEDIN)) {
+            return account.get().getTokens().get(PlatformType.LINKEDIN).getAccessToken();
+        }
+
         if (configuredAccessToken != null && !configuredAccessToken.isEmpty()) {
             return configuredAccessToken;
         }
-        // TODO: Retrieve from database per user (requires OAuth implementation)
+
         throw new IllegalStateException(
-                "No LinkedIn access token found. Please set LINKEDIN_ACCESS_TOKEN environment variable.");
+                "No LinkedIn access token found for user: " + userId + ". Please authorize LinkedIn.");
+    }
+
+    /**
+     * Get user's LinkedIn person URN.
+     */
+    private String getPersonUrn(String userId) {
+        Optional<UserAccount> account = userAccountRepository.findById(userId);
+        if (account.isPresent() && account.get().getTokens().containsKey(PlatformType.LINKEDIN)) {
+            return account.get().getTokens().get(PlatformType.LINKEDIN).getPersonUrn();
+        }
+
+        if (configuredUserUrn != null && !configuredUserUrn.isEmpty()) {
+            return configuredUserUrn;
+        }
+
+        throw new IllegalStateException(
+                "No LinkedIn User URN found for user: " + userId + ". Please authorize LinkedIn.");
     }
 
     /**
      * Create a share (post) on LinkedIn.
      */
-    private String createShare(String accessToken, ThoughtsToPost.EnrichedContent content, String imageBase64) {
-        String personUrn = configuredUserUrn != null && !configuredUserUrn.isEmpty() ? configuredUserUrn : null;
-        if (personUrn == null) {
-            throw new IllegalStateException(
-                    "No LinkedIn User URN found. Please set LINKEDIN_USER_URN environment variable (e.g., urn:li:person:XXXXX).");
-        }
-
+    private String createShare(String accessToken, String personUrn, ThoughtsToPost.EnrichedContent content, String imageBase64) {
         String assetUrn = null;
 
         if (imageBase64 != null && !imageBase64.isEmpty()) {
