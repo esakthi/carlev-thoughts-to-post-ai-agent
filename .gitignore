@@ -3,8 +3,20 @@
 .vscode/
 .idea/
 *.log
+*.tmp
+.env
+.env.local
 
-# Python (AI Agent)
+# Project Specific
+logs/
+brain/
+.agent/
+
+# Kafka / Data
+kafka_data/
+*.pid
+
+# Python (AI Agent) - Global patterns
 __pycache__/
 *.pyc
 *.pyo
@@ -12,7 +24,6 @@ __pycache__/
 .Python
 env/
 venv/
-.env
 .venv/
 pip-log.txt
 pip-delete-this-directory.txt
@@ -23,37 +34,32 @@ pip-delete-this-directory.txt
 nosetests.xml
 coverage.xml
 *.cover
-*.log
 .pytest_cache/
-thoughts-to-post-ai-agent/checkpoints/
 
-# Angular (UI)
-thoughts-to-post-angular-ui/node_modules/
-thoughts-to-post-angular-ui/dist/
-thoughts-to-post-angular-ui/.angular/
-thoughts-to-post-angular-ui/.editorconfig
-thoughts-to-post-angular-ui/coverage/
+# Angular (UI) - Global patterns
+node_modules/
+dist/
+.angular/
+coverage/
 
-# Java/Gradle (API Service)
-thoughts-to-post-api-service/.gradle/
-thoughts-to-post-api-service/build/
-thoughts-to-post-api-service/target/
-thoughts-to-post-api-service/bin/
-thoughts-to-post-api-service/.settings/
-thoughts-to-post-api-service/.classpath
-thoughts-to-post-api-service/.project
+# Java/Gradle (API Service) - Global patterns
+.gradle/
+build/
+target/
+bin/
+.settings/
+.classpath
+.project
 *.class
 *.jar
 *.war
 *.nar
 *.ear
+
+# Compressed files
 *.zip
 *.tar.gz
 *.rar
 
 # Docker
 docker-compose.override.yml
-
-# Brain/Artifacts
-.agent/
-brain/
