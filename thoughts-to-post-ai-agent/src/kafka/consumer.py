@@ -45,15 +45,19 @@ class KafkaRequestConsumer:
             Deserialized JSON dict, or None if message is empty/invalid
         """
         if not message:
+            logger.debug("Received empty Kafka message bytes")
             return None
         
         try:
             decoded = message.decode("utf-8")
+            logger.debug(f"Decoding message of length {len(decoded)}")
             if not decoded.strip():
+                logger.debug("Message body is empty whitespace")
                 return None
             return json.loads(decoded)
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to deserialize message: {e}")
+            logger.debug(f"Original message bytes (hex): {message.hex()}")
             return None
 
     def _create_consumer(self) -> KafkaPythonConsumer:

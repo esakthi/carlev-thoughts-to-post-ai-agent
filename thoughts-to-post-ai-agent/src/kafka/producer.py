@@ -76,6 +76,29 @@ class KafkaResponseProducer:
             self.connect()
 
         try:
+            # Log the response details
+            logger.info("=" * 80)
+            logger.info(f"SENDING KAFKA RESPONSE: {response.request_id}")
+            logger.info("-" * 80)
+            logger.info(f"User ID: {response.user_id}")
+            logger.info(f"Status: {response.status}")
+            logger.info(f"Version: {response.version}")
+
+            if response.enriched_contents:
+                logger.info(f"Enriched Platforms: {[c.platform.value for c in response.enriched_contents]}")
+
+            if response.generated_image:
+                logger.info(f"Generated Image: YES (Prompt: {response.generated_image.prompt_used[:50]}...)")
+            else:
+                logger.info("Generated Image: NO")
+
+            if response.error_message:
+                logger.info(f"Error Message: {response.error_message}")
+
+            logger.debug("Full response body:")
+            logger.debug(json.dumps(response.model_dump(), indent=2, default=str))
+            logger.info("=" * 80)
+
             # Use request_id as the message key for partitioning
             future = self._producer.send(
                 self.topic,
@@ -87,7 +110,7 @@ class KafkaResponseProducer:
             record_metadata = future.get(timeout=10)
 
             logger.info(
-                f"Sent response for request {response.request_id} "
+                f"Successfully ACK'd response for request {response.request_id} "
                 f"to {record_metadata.topic}:{record_metadata.partition} "
                 f"at offset {record_metadata.offset}"
             )

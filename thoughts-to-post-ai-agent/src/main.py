@@ -54,6 +54,7 @@ class ThoughtsToPostAgent:
 
     def _sync_history_to_agent(self, context: AgentContext) -> None:
         """Convert stored dict history to LangChain messages and set in agent."""
+        logger.info(f"Syncing history TO agent for request: {context.request_id}")
         messages = []
         for msg in context.conversation_history:
             if msg.get("type") == "human":
@@ -62,10 +63,13 @@ class ThoughtsToPostAgent:
                 messages.append(AIMessage(content=msg["content"]))
             elif msg.get("type") == "system":
                 messages.append(SystemMessage(content=msg["content"]))
+
+        logger.debug(f"Converting {len(messages)} historical messages for LangChain")
         self.content_agent.set_history(context.request_id, messages)
 
     def _sync_history_from_agent(self, context: AgentContext) -> None:
         """Convert agent's LangChain messages back to dicts and store in context."""
+        logger.info(f"Syncing history FROM agent for request: {context.request_id}")
         messages = self.content_agent.get_history(context.request_id)
         history_dicts = []
         for msg in messages:
@@ -92,12 +96,16 @@ class ThoughtsToPostAgent:
         logger.info(f"Processing request: {request.request_id}")
 
         # Create or get existing context
+        logger.debug(f"Retrieving context for request {request.request_id}")
         context = self.memory.get_context(request.request_id)
         if not context:
+            logger.info(f"No existing context found for {request.request_id}. Creating new context.")
             context = self.memory.create_context(request)
         else:
+            logger.info(f"Found existing context for {request.request_id} (Version: {context.current_version})")
             # If refinement, add to context
             if request.additional_instructions and request.version > 1:
+                logger.info(f"Refinement detected for request {request.request_id}. Instructions: {request.additional_instructions}")
                 self.memory.add_refinement(request.request_id, request.additional_instructions)
 
         try:
@@ -141,6 +149,7 @@ class ThoughtsToPostAgent:
                     logger.warning(f"Image generation failed, continuing without image: {e}")
 
             # Mark as completed
+            logger.info(f"Marking request {request.request_id} as COMPLETED")
             self.memory.update_context(
                 request.request_id, status=RequestStatus.COMPLETED
             )
@@ -155,6 +164,7 @@ class ThoughtsToPostAgent:
                 version=context.current_version,
             )
 
+            logger.info(f"Sending success response for request {request.request_id} to Kafka")
             self.producer.send(response)
             logger.info(f"Successfully processed request: {request.request_id}")
 
@@ -177,6 +187,7 @@ class ThoughtsToPostAgent:
                 version=context.current_version if context else 1,
             )
 
+            logger.info(f"Sending error response for request {request.request_id} to Kafka")
             self.producer.send(error_response)
 
     def start(self) -> None:
