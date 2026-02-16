@@ -26,10 +26,10 @@ import { ThoughtCategory } from '../../../models/thought.models';
                 <button class="btn-icon" (click)="deleteCategory(cat.id!)" [disabled]="cat.thoughtCategory === 'Default'">🗑️</button>
               </div>
             </div>
-            <p class="description">{{ cat.description }}</p>
+            <p class="description">{{ cat.searchDescription }}</p>
             <div class="prompt-preview">
-              <strong>System Prompt:</strong>
-              <pre>{{ cat.systemPrompt }}</pre>
+              <strong>Model Role Prompt:</strong>
+              <pre>{{ cat.modelRole }}</pre>
             </div>
           </div>
         }
@@ -47,12 +47,12 @@ import { ThoughtCategory } from '../../../models/thought.models';
               <input type="text" class="form-input" [(ngModel)]="currentCat().thoughtCategory" name="name" required />
             </div>
             <div class="form-group">
-              <label class="form-label">Description (Context for AI)</label>
-              <textarea class="form-textarea" [(ngModel)]="currentCat().description" name="desc" rows="3" required></textarea>
+              <label class="form-label">Search Description (Context for AI)</label>
+              <textarea class="form-textarea" [(ngModel)]="currentCat().searchDescription" name="desc" rows="3" required></textarea>
             </div>
             <div class="form-group">
-              <label class="form-label">System Prompt</label>
-              <textarea class="form-textarea" [(ngModel)]="currentCat().systemPrompt" name="prompt" rows="10" required></textarea>
+              <label class="form-label">Model Role Prompt</label>
+              <textarea class="form-textarea" [(ngModel)]="currentCat().modelRole" name="prompt" rows="10" required></textarea>
             </div>
             <div class="modal-actions">
               <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
@@ -155,8 +155,8 @@ export class CategoriesPageComponent implements OnInit {
     editingId = signal<string | null>(null);
     currentCat = signal<ThoughtCategory>({
         thoughtCategory: '',
-        description: '',
-        systemPrompt: ''
+        searchDescription: '',
+        modelRole: ''
     });
 
     ngOnInit() {
@@ -171,8 +171,8 @@ export class CategoriesPageComponent implements OnInit {
         this.editingId.set(null);
         this.currentCat.set({
             thoughtCategory: '',
-            description: '',
-            systemPrompt: ''
+            searchDescription: '',
+            modelRole: ''
         });
         this.showModal.set(true);
     }

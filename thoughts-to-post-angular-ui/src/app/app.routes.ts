@@ -20,6 +20,10 @@ export const routes: Routes = [
         ]
     },
     {
+        path: 'platforms/:platform',
+        loadComponent: () => import('./pages/platform-posts-page/platform-posts-page.component').then(m => m.PlatformPostsPageComponent)
+    },
+    {
         path: 'admin', children: [
             {
                 path: 'categories',

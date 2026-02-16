@@ -24,8 +24,8 @@ public class ThoughtRequestMessage {
     private String originalThought;
     private List<PlatformType> platforms;
     private String additionalInstructions;
-    private String systemPrompt;
-    private String categoryDescription;
+    private String modelRole;
+    private String searchDescription;
     private java.util.Map<PlatformType, String> platformPrompts;
     private Integer version;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")

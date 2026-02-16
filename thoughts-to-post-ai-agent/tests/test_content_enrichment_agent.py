@@ -15,8 +15,8 @@ def test_get_prompt_template_uses_dynamic_prompts(mock_ollama, agent):
         userId="user1",
         originalThought="Test thought",
         platforms=["linkedin"],
-        systemPrompt="Dynamic System Prompt",
-        categoryDescription="Dynamic Category Description",
+        modelRole="Dynamic System Prompt",
+        searchDescription="Dynamic Category Description",
         platformPrompts={"linkedin": "Dynamic LinkedIn Prompt"}
     )
 

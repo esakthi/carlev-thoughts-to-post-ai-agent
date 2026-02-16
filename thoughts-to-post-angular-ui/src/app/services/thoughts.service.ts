@@ -28,6 +28,13 @@ export class ThoughtsService {
     }
 
     /**
+     * Get thoughts by platform
+     */
+    getThoughtsByPlatform(platform: string): Observable<ThoughtResponse[]> {
+        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?platform=${platform.toUpperCase()}`, { headers: this.headers });
+    }
+
+    /**
      * Create a new thought and send for AI enrichment
      */
     createThought(request: CreateThoughtRequest): Observable<ThoughtResponse> {

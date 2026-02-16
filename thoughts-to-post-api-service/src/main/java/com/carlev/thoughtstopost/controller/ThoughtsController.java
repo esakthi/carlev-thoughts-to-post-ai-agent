@@ -57,10 +57,11 @@ public class ThoughtsController {
     }
 
     /**
-     * Get all thoughts for a user, optionally filtered by status.
+     * Get all thoughts for a user, optionally filtered by status or platform.
      * 
      * @param status    Optional status to filter by
      * @param notStatus Optional status to exclude
+     * @param platform  Optional platform to filter by
      * @param userId    User ID from header
      * @return List of thought responses
      */
@@ -68,13 +69,17 @@ public class ThoughtsController {
     public ResponseEntity<List<ThoughtResponse>> getUserThoughts(
             @RequestParam(required = false) PostStatus status,
             @RequestParam(required = false) PostStatus notStatus,
+            @RequestParam(required = false) com.carlev.thoughtstopost.model.PlatformType platform,
             @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
-        log.info("Getting thoughts for user: {} with filter status: {}, notStatus: {}", userId, status, notStatus);
+        log.info("Getting thoughts for user: {} with filter status: {}, notStatus: {}, platform: {}",
+                userId, status, notStatus, platform);
         List<ThoughtResponse> responses;
         if (status != null) {
             responses = thoughtsService.getUserThoughtsByStatus(userId, status);
         } else if (notStatus != null) {
             responses = thoughtsService.getUserThoughtsByStatusNot(userId, notStatus);
+        } else if (platform != null) {
+            responses = thoughtsService.getUserThoughtsByPlatform(userId, platform);
         } else {
             responses = thoughtsService.getUserThoughts(userId);
         }

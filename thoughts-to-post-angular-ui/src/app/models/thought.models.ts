@@ -52,8 +52,8 @@ export interface CreateThoughtRequest {
 export interface ThoughtCategory {
     id?: string;
     thoughtCategory: string;
-    description: string;
-    systemPrompt: string;
+    searchDescription: string;
+    modelRole: string;
     createdDateTime?: string;
     updatedDateTime?: string;
 }
