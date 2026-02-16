@@ -45,6 +45,9 @@ class StableDiffusionGenerator(ImageGenerator):
         Returns:
             GeneratedImage with base64 encoded image
         """
+        logger.info(f"Generating image via Stable Diffusion at {self.api_url}")
+        logger.debug(f"SD Prompt: {prompt}")
+
         # Automatic1111 txt2img endpoint
         endpoint = f"{self.api_url}/sdapi/v1/txt2img"
 
@@ -60,11 +63,13 @@ class StableDiffusionGenerator(ImageGenerator):
 
         try:
             with httpx.Client(timeout=120.0) as client:
+                logger.debug(f"Sending request to Stable Diffusion: {endpoint}")
                 response = client.post(endpoint, json=payload)
                 response.raise_for_status()
 
                 result = response.json()
                 image_base64 = result["images"][0]
+                logger.info(f"Stable Diffusion generated image successfully. Base64 length: {len(image_base64)}")
 
                 return GeneratedImage(
                     image_base64=image_base64,
@@ -101,6 +106,8 @@ class DalleGenerator(ImageGenerator):
         Returns:
             GeneratedImage with base64 encoded image
         """
+        logger.info("Generating image via OpenAI DALL-E 3")
+        logger.debug(f"DALL-E Prompt: {prompt}")
         endpoint = "https://api.openai.com/v1/images/generations"
 
         headers = {
@@ -118,11 +125,13 @@ class DalleGenerator(ImageGenerator):
 
         try:
             with httpx.Client(timeout=120.0) as client:
+                logger.debug("Sending request to OpenAI DALL-E")
                 response = client.post(endpoint, headers=headers, json=payload)
                 response.raise_for_status()
 
                 result = response.json()
                 image_base64 = result["data"][0]["b64_json"]
+                logger.info(f"DALL-E generated image successfully. Base64 length: {len(image_base64)}")
 
                 return GeneratedImage(
                     image_base64=image_base64,
@@ -170,29 +179,36 @@ class OllamaGenerator(ImageGenerator):
 
         try:
             logger.info(f"Calling Ollama image generation with model: {self.model_name}")
+            logger.debug(f"Ollama Prompt: {prompt}")
             with httpx.Client(timeout=180.0) as client:
                 response = client.post(endpoint, json=payload)
                 response.raise_for_status()
 
                 result = response.json()
+                logger.debug(f"Ollama response keys: {list(result.keys())}")
 
                 # Experimental image models in Ollama may return the image in different ways
                 # Some return it in a 'response' field, some in an 'images' list
                 image_base64 = None
 
                 if "image" in result:
+                    logger.debug("Found image in 'image' field")
                     image_base64 = result["image"]
                 elif "images" in result and result["images"]:
+                    logger.debug(f"Found {len(result['images'])} images in 'images' list")
                     image_base64 = result["images"][0]
                 elif "response" in result:
                     resp_text = result["response"].strip()
+                    logger.debug(f"Analyzing 'response' field (length: {len(resp_text)})")
 
                     # Check if it's wrapped in a data URI
                     if "data:image" in resp_text and "base64," in resp_text:
+                        logger.debug("Found data:image URI in response")
                         image_base64 = resp_text.split("base64,")[1].split('"')[0].split("'")[0]
                     # If the response is likely a base64 string
                     # Base64 strings should not have spaces and should be long
                     elif len(resp_text) > 1000 and " " not in resp_text:
+                        logger.debug("Response text looks like a direct base64 string")
                         image_base64 = resp_text
 
                 if not image_base64:
@@ -227,6 +243,7 @@ class PlaceholderGenerator(ImageGenerator):
         Returns:
             GeneratedImage with a placeholder
         """
+        logger.info("Returning 1x1 placeholder image")
         # Create a simple 1x1 transparent PNG as placeholder
         # This base64 represents a 1x1 transparent PNG.
         # LinkedIn may display this as a plain colored block.
@@ -271,25 +288,27 @@ class ImageGenerationAgent:
     def _get_generator(self) -> ImageGenerator:
         """Get or create the image generator."""
         if not self._generator:
+            logger.info(f"Initializing image generator of type: {self.generator_type}")
             if self.generator_type == "stable_diffusion":
                 try:
                     self._generator = StableDiffusionGenerator()
-                except Exception:
-                    logger.warning("Stable Diffusion unavailable, using placeholder")
+                except Exception as e:
+                    logger.warning(f"Stable Diffusion unavailable, using placeholder: {e}")
                     self._generator = PlaceholderGenerator()
             elif self.generator_type == "dalle":
                 try:
                     self._generator = DalleGenerator()
-                except ValueError:
-                    logger.warning("DALL-E unavailable (no API key), using placeholder")
+                except ValueError as e:
+                    logger.warning(f"DALL-E unavailable (no API key), using placeholder: {e}")
                     self._generator = PlaceholderGenerator()
             elif self.generator_type == "ollama":
                 try:
                     self._generator = OllamaGenerator()
-                except Exception:
-                    logger.warning("Ollama image generation unavailable, using placeholder")
+                except Exception as e:
+                    logger.warning(f"Ollama image generation unavailable, using placeholder: {e}")
                     self._generator = PlaceholderGenerator()
             else:
+                logger.info(f"Unknown or unspecified generator type '{self.generator_type}', using placeholder")
                 self._generator = PlaceholderGenerator()
 
         return self._generator
@@ -358,11 +377,13 @@ Generate a prompt for a visually compelling image that represents this content."
         Returns:
             GeneratedImage for the content
         """
+        logger.info(f"Generating image for {content.platform.value} content")
         # First, generate an optimized prompt
         image_prompt = self.generate_image_prompt(content)
 
         # Then generate the image
         generator = self._get_generator()
+        logger.info(f"Dispatching to {generator.__class__.__name__}")
         return generator.generate(image_prompt)
 
     def generate_from_prompt(self, prompt: str) -> GeneratedImage:
