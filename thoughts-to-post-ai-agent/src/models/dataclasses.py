@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PlatformType(str, Enum):
@@ -78,9 +78,9 @@ class ThoughtRequest(BaseModel):
     )
 
     # Allow population using either field names or aliases
-    class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
     @field_validator("platforms", mode="before")
     @classmethod
@@ -219,9 +219,9 @@ class SearchRequest(BaseModel):
     description: Optional[str] = Field(default=None)
     search_string: Optional[str] = Field(default=None, alias="searchString")
 
-    class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class SearchResponse(BaseModel):
@@ -230,6 +230,10 @@ class SearchResponse(BaseModel):
     correlation_id: str = Field(..., alias="correlationId")
     result: Optional[str] = Field(default=None)
     error: Optional[str] = Field(default=None)
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class AgentResponse(BaseModel):
@@ -248,5 +252,6 @@ class AgentResponse(BaseModel):
     error_message: Optional[str] = Field(default=None, description="Error message if failed")
     processed_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(
+        use_enum_values=True,
+    )
