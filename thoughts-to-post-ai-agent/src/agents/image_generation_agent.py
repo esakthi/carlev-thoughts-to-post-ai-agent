@@ -185,13 +185,15 @@ class OllamaGenerator(ImageGenerator):
                 elif "images" in result and result["images"]:
                     image_base64 = result["images"][0]
                 elif "response" in result:
-                    resp_text = result["response"]
-                    # If the response is just the base64 string
-                    if len(resp_text) > 1000 and not resp_text.startswith("{"):
-                        image_base64 = resp_text.strip()
-                    # If it's wrapped in a data URI
-                    elif "data:image" in resp_text and "base64," in resp_text:
+                    resp_text = result["response"].strip()
+
+                    # Check if it's wrapped in a data URI
+                    if "data:image" in resp_text and "base64," in resp_text:
                         image_base64 = resp_text.split("base64,")[1].split('"')[0].split("'")[0]
+                    # If the response is likely a base64 string
+                    # Base64 strings should not have spaces and should be long
+                    elif len(resp_text) > 1000 and " " not in resp_text:
+                        image_base64 = resp_text
 
                 if not image_base64:
                     logger.warning(

@@ -258,20 +258,23 @@ class ContentEnrichmentAgent:
         history = self.get_history(request.request_id)
 
         if not history:
-            raise ValueError(f"No history found for request {request.request_id}")
+            # If no history, we can't refine, but we can try to re-enrich as if it's the first time
+            # Or just log it and use empty history
+            logger.warning(f"No history found for request {request.request_id}. Initializing with empty history.")
+            history = []
 
         input_text = f"Please refine the content with the following feedback: {refinement_instruction}"
 
         chain = prompt | llm | StrOutputParser()
 
-        logger.info(f"Refining content for request {request_id}")
+        logger.info(f"Refining content for request {request.request_id}")
 
         refined_text = chain.invoke({
             "history": history,
             "input": input_text,
         })
 
-        self._add_to_history(request_id, input_text, refined_text)
+        self._add_to_history(request.request_id, input_text, refined_text)
         hashtags = self._extract_hashtags(refined_text)
 
         return EnrichedContent(
