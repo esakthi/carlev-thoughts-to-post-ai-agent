@@ -41,6 +41,8 @@ import {
               [isProcessing]="isPolling()"
               (approve)="onApprove($event)"
               (reject)="onReject()"
+              (updateContent)="onUpdateContent($event)"
+              (reenrich)="onReenrich($event)"
             />
           </div>
         } @else if (!isLoading()) {
@@ -234,6 +236,40 @@ export class ThoughtsPageComponent {
             },
             error: (err) => {
                 this.error.set('Failed to reject: ' + err.message);
+                this.isLoading.set(false);
+            }
+        });
+    }
+
+    onUpdateContent(updatedThought: ThoughtResponse) {
+        this.isLoading.set(true);
+        this.thoughtsService.updateThought(updatedThought.id, updatedThought).subscribe({
+            next: (updated) => {
+                this.currentThought.set(updated);
+                this.isLoading.set(false);
+            },
+            error: (err) => {
+                this.error.set('Failed to update content: ' + err.message);
+                this.isLoading.set(false);
+            }
+        });
+    }
+
+    onReenrich(comments: string) {
+        const thought = this.currentThought();
+        if (!thought) return;
+
+        this.isLoading.set(true);
+        this.error.set(null);
+
+        this.thoughtsService.reenrichThought(thought.id, comments).subscribe({
+            next: (updated) => {
+                this.currentThought.set(updated);
+                this.isLoading.set(false);
+                this.startPolling(updated.id);
+            },
+            error: (err) => {
+                this.error.set('Failed to resubmit: ' + err.message);
                 this.isLoading.set(false);
             }
         });
