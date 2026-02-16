@@ -34,34 +34,34 @@ import { ThoughtCategory } from '../../../models/thought.models';
           </div>
         }
       </div>
-
-      <!-- Edit/Create Modal -->
-      @if (showModal()) {
-        <div class="modal-overlay">
-          <div class="modal-content card">
-            <h2>{{ editingId() ? 'Edit' : 'Create' }} Category</h2>
-            <form (ngSubmit)="saveCategory()">
-              <div class="form-group">
-                <label class="form-label">Category Name</label>
-                <input type="text" class="form-input" [(ngModel)]="currentCat().thoughtCategory" name="name" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Description (Context for AI)</label>
-                <textarea class="form-textarea" [(ngModel)]="currentCat().description" name="desc" rows="3" required></textarea>
-              </div>
-              <div class="form-group">
-                <label class="form-label">System Prompt</label>
-                <textarea class="form-textarea" [(ngModel)]="currentCat().systemPrompt" name="prompt" rows="10" required></textarea>
-              </div>
-              <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      }
     </div>
+
+    <!-- Edit/Create Modal -->
+    @if (showModal()) {
+      <div class="modal-overlay">
+        <div class="modal-content card">
+          <h2>{{ editingId() ? 'Edit' : 'Create' }} Category</h2>
+          <form (ngSubmit)="saveCategory()">
+            <div class="form-group">
+              <label class="form-label">Category Name</label>
+              <input type="text" class="form-input" [(ngModel)]="currentCat().thoughtCategory" name="name" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description (Context for AI)</label>
+              <textarea class="form-textarea" [(ngModel)]="currentCat().description" name="desc" rows="3" required></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">System Prompt</label>
+              <textarea class="form-textarea" [(ngModel)]="currentCat().systemPrompt" name="prompt" rows="10" required></textarea>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
   `,
     styles: [`
     .page-header {
@@ -122,11 +122,13 @@ import { ThoughtCategory } from '../../../models/thought.models';
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.85);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
-      z-index: 1000;
+      z-index: 2000;
+      padding-top: 100px;
+      overflow-y: auto;
     }
 
     .modal-content {

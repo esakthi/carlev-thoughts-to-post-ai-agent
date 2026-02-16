@@ -32,26 +32,26 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
           </div>
         }
       </div>
-
-      <!-- Edit Modal -->
-      @if (showModal()) {
-        <div class="modal-overlay">
-          <div class="modal-content card">
-            <h2>Edit {{ PLATFORM_CONFIG[currentPrompt().platform].label }} Prompt</h2>
-            <form (ngSubmit)="savePrompt()">
-              <div class="form-group">
-                <label class="form-label">Prompt Text</label>
-                <textarea class="form-textarea" [(ngModel)]="currentPrompt().promptText" name="prompt" rows="15" required></textarea>
-              </div>
-              <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      }
     </div>
+
+    <!-- Edit Modal -->
+    @if (showModal()) {
+      <div class="modal-overlay">
+        <div class="modal-content card">
+          <h2>Edit {{ PLATFORM_CONFIG[currentPrompt().platform].label }} Prompt</h2>
+          <form (ngSubmit)="savePrompt()">
+            <div class="form-group">
+              <label class="form-label">Prompt Text</label>
+              <textarea class="form-textarea" [(ngModel)]="currentPrompt().promptText" name="prompt" rows="15" required></textarea>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
   `,
     styles: [`
     .page-header {
@@ -114,11 +114,13 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.85);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
-      z-index: 1000;
+      z-index: 2000;
+      padding-top: 100px;
+      overflow-y: auto;
     }
 
     .modal-content {
