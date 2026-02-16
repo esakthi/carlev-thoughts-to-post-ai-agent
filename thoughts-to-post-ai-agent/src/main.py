@@ -13,7 +13,9 @@ from .models import (
     ThoughtRequest,
     AgentResponse,
     RequestStatus,
+    AgentContext,
 )
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 # Configure logging
 logging.basicConfig(
@@ -50,6 +52,37 @@ class ThoughtsToPostAgent:
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
+    def _sync_history_to_agent(self, context: AgentContext) -> None:
+        """Convert stored dict history to LangChain messages and set in agent."""
+        messages = []
+        for msg in context.conversation_history:
+            if msg.get("type") == "human":
+                messages.append(HumanMessage(content=msg["content"]))
+            elif msg.get("type") == "ai":
+                messages.append(AIMessage(content=msg["content"]))
+            elif msg.get("type") == "system":
+                messages.append(SystemMessage(content=msg["content"]))
+        self.content_agent.set_history(context.request_id, messages)
+
+    def _sync_history_from_agent(self, context: AgentContext) -> None:
+        """Convert agent's LangChain messages back to dicts and store in context."""
+        messages = self.content_agent.get_history(context.request_id)
+        history_dicts = []
+        for msg in messages:
+            msg_type = "unknown"
+            if isinstance(msg, HumanMessage):
+                msg_type = "human"
+            elif isinstance(msg, AIMessage):
+                msg_type = "ai"
+            elif isinstance(msg, SystemMessage):
+                msg_type = "system"
+
+            history_dicts.append({
+                "type": msg_type,
+                "content": msg.content
+            })
+        context.conversation_history = history_dicts
+
     def process_request(self, request: ThoughtRequest) -> None:
         """Process a single thought enrichment request.
 
@@ -62,12 +95,19 @@ class ThoughtsToPostAgent:
         context = self.memory.get_context(request.request_id)
         if not context:
             context = self.memory.create_context(request)
+        else:
+            # If refinement, add to context
+            if request.additional_instructions and request.version > 1:
+                self.memory.add_refinement(request.request_id, request.additional_instructions)
 
         try:
             # Update status to processing
             self.memory.update_context(
                 request.request_id, status=RequestStatus.PROCESSING
             )
+
+            # Sync history from persistent context to agent's memory
+            self._sync_history_to_agent(context)
 
             # Step 1: Enrich content for all platforms
             logger.info(f"Enriching content for platforms: {request.platforms}")
@@ -77,6 +117,9 @@ class ThoughtsToPostAgent:
                 msg = f"Failed to enrich content for any of the requested platforms: {request.platforms}"
                 logger.error(msg)
                 raise Exception(msg)
+
+            # Sync history back from agent to context
+            self._sync_history_from_agent(context)
 
             # Update context with enriched contents
             self.memory.update_context(

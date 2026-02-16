@@ -20,8 +20,8 @@ public class ThoughtCategory {
     @Id
     private String id;
     private String thoughtCategory;
-    private String description;
-    private String systemPrompt;
+    private String searchDescription;
+    private String modelRole;
 
     @CreatedDate
     private LocalDateTime createdDateTime;

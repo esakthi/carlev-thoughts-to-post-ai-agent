@@ -39,8 +39,8 @@ public class AdminController {
         return categoryRepository.findById(id)
                 .map(category -> {
                     category.setThoughtCategory(categoryDetails.getThoughtCategory());
-                    category.setDescription(categoryDetails.getDescription());
-                    category.setSystemPrompt(categoryDetails.getSystemPrompt());
+                    category.setSearchDescription(categoryDetails.getSearchDescription());
+                    category.setModelRole(categoryDetails.getModelRole());
                     return ResponseEntity.ok(categoryRepository.save(category));
                 })
                 .orElse(ResponseEntity.notFound().build());

@@ -31,8 +31,8 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Seeding default thought category...");
             ThoughtCategory defaultCategory = ThoughtCategory.builder()
                     .thoughtCategory("Default")
-                    .description("General category for all types of thoughts.")
-                    .systemPrompt("""
+                    .searchDescription("General category for all types of thoughts.")
+                    .modelRole("""
                             You are an AI content enrichment specialist. Your task is to transform
                             raw thoughts and ideas into polished, engaging social media content.
 

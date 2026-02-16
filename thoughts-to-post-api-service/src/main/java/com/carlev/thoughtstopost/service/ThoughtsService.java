@@ -91,6 +91,15 @@ public class ThoughtsService {
     }
 
     /**
+     * Get thoughts for a user filtered by platform.
+     */
+    public List<ThoughtResponse> getUserThoughtsByPlatform(String userId, com.carlev.thoughtstopost.model.PlatformType platform) {
+        return thoughtsRepository.findByUserIdAndSelectedPlatformsContains(userId, platform).stream()
+                .map(ThoughtResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get thoughts for a user filtered by status.
      */
     public List<ThoughtResponse> getUserThoughtsByStatus(String userId, PostStatus status) {
@@ -355,8 +364,8 @@ public class ThoughtsService {
                 .originalThought(thought.getOriginalThought())
                 .platforms(thought.getSelectedPlatforms())
                 .additionalInstructions(additionalInstructions)
-                .systemPrompt(category != null ? category.getSystemPrompt() : null)
-                .categoryDescription(category != null ? category.getDescription() : null)
+                .modelRole(category != null ? category.getModelRole() : null)
+                .searchDescription(category != null ? category.getSearchDescription() : null)
                 .platformPrompts(platformPrompts)
                 .version(thought.getVersion() != null ? thought.getVersion().intValue() : 1)
                 .createdAt(LocalDateTime.now())

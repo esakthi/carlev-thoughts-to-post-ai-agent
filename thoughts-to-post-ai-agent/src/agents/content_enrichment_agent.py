@@ -98,11 +98,11 @@ class ContentEnrichmentAgent:
     ) -> ChatPromptTemplate:
         """Create a prompt template for the given platform using dynamic prompts from request."""
         # Use dynamic system prompt from request, fallback to hardcoded if not provided
-        system_prompt = request.system_prompt or BASE_SYSTEM_PROMPT
+        system_prompt = request.model_role or BASE_SYSTEM_PROMPT
 
         # Include category description if available
-        if request.category_description:
-            system_prompt += f"\n\nCategory Context: {request.category_description}"
+        if request.search_description:
+            system_prompt += f"\n\nCategory Context: {request.search_description}"
 
         # Use platform-specific prompt from request, fallback to hardcoded
         platform_prompt = request.platform_prompts.get(platform)
@@ -115,9 +115,13 @@ class ContentEnrichmentAgent:
             ("human", "{input}"),
         ])
 
-    def _get_history(self, request_id: str) -> list:
+    def get_history(self, request_id: str) -> list:
         """Get conversation history for a request."""
         return self._conversation_history.get(request_id, [])
+
+    def set_history(self, request_id: str, history: list) -> None:
+        """Set conversation history for a request."""
+        self._conversation_history[request_id] = history
 
     def _add_to_history(
         self, request_id: str, human_msg: str, ai_msg: str
@@ -158,7 +162,7 @@ class ContentEnrichmentAgent:
             input_text += f"\n\nContext: {additional_context}"
 
         # Get conversation history for refinements
-        history = self._get_history(request.request_id)
+        history = self.get_history(request.request_id)
 
         # Create and run the chain
         chain = prompt | llm | StrOutputParser()
@@ -251,7 +255,7 @@ class ContentEnrichmentAgent:
         """
         llm = self._get_llm()
         prompt = self._get_prompt_template(platform, request)
-        history = self._get_history(request.request_id)
+        history = self.get_history(request.request_id)
 
         if not history:
             raise ValueError(f"No history found for request {request.request_id}")
