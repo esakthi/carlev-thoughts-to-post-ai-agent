@@ -17,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class ThoughtsKafkaProducer {
 
-    private final KafkaTemplate<String, ThoughtRequestMessage> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Value("${app.kafka.request-topic}")
     private String requestTopic;
@@ -28,7 +28,7 @@ public class ThoughtsKafkaProducer {
      * @param message The request message to send
      * @return CompletableFuture with the send result
      */
-    public CompletableFuture<SendResult<String, ThoughtRequestMessage>> sendRequest(
+    public CompletableFuture<SendResult<String, Object>> sendRequest(
             ThoughtRequestMessage message) {
         log.info("Sending thought request to Kafka: requestId={}", message.getRequestId());
 

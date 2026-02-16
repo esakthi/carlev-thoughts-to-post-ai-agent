@@ -35,7 +35,7 @@ import { ThoughtResponse, ApproveThoughtRequest } from '../../models/thought.mod
       } @else {
         <div class="error-state">
           <p>Post not found.</p>
-          <button class="btn btn-primary" routerLink="/">Go Home</button>
+          <button class="btn btn-primary" routerLink="/dashboard">Go Home</button>
         </div>
       }
 

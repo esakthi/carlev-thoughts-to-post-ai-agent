@@ -31,6 +31,7 @@ public class ThoughtsService {
     private final ThoughtsToPostRepository thoughtsRepository;
     private final ThoughtsToPostHistoryRepository historyRepository;
     private final com.carlev.thoughtstopost.repository.AppConfigRepository configRepository;
+    private final com.carlev.thoughtstopost.repository.ThoughtCategoryRepository thoughtCategoryRepository;
     private final ThoughtsKafkaProducer kafkaProducer;
     private final SocialMediaService socialMediaService;
 
@@ -242,9 +243,16 @@ public class ThoughtsService {
      * Get available categories from config or defaults.
      */
     public List<String> getCategories() {
-        return configRepository.findByKey("categories")
-                .map(com.carlev.thoughtstopost.model.AppConfig::getValue)
-                .orElse(DEFAULT_CATEGORIES);
+        List<String> categories = thoughtCategoryRepository.findAll().stream()
+                .map(com.carlev.thoughtstopost.model.ThoughtCategory::getCategory)
+                .collect(Collectors.toList());
+
+        if (categories.isEmpty()) {
+            return configRepository.findByKey("categories")
+                    .map(com.carlev.thoughtstopost.model.AppConfig::getValue)
+                    .orElse(DEFAULT_CATEGORIES);
+        }
+        return categories;
     }
 
     /**
@@ -361,10 +369,15 @@ public class ThoughtsService {
      * Send thought to AI agent via Kafka.
      */
     private void sendToAiAgent(ThoughtsToPost thought, String additionalInstructions) {
+        String modelRole = thoughtCategoryRepository.findByCategory(thought.getCategory())
+                .map(com.carlev.thoughtstopost.model.ThoughtCategory::getModelRole)
+                .orElse(null);
+
         ThoughtRequestMessage message = ThoughtRequestMessage.builder()
                 .requestId(thought.getId())
                 .userId(thought.getUserId())
                 .originalThought(thought.getOriginalThought())
+                .modelRole(modelRole)
                 .platforms(thought.getSelectedPlatforms())
                 .additionalInstructions(additionalInstructions)
                 .version(thought.getVersion() != null ? thought.getVersion().intValue() : 1)

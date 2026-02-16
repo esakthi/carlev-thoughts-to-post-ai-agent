@@ -12,45 +12,48 @@ import org.springframework.stereotype.Component;
 /**
  * Kafka consumer for receiving AI agent processing results.
  */
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class ThoughtsKafkaConsumer {
 
     private final ThoughtsService thoughtsService;
+    private final ObjectMapper objectMapper;
 
     /**
      * Handle incoming response messages from the AI agent.
      *
-     * @param message The response message from AI agent
+     * @param messageJson The response message from AI agent as JSON string
      * @param key The Kafka message key
      */
     @KafkaListener(topics = "${app.kafka.response-topic}", groupId = "${spring.kafka.consumer.group-id}", containerFactory = "kafkaListenerContainerFactory")
     public void handleResponse(
-            @Payload(required = false) ThoughtResponseMessage message,
+            @Payload(required = false) String messageJson,
             @Header(value = KafkaHeaders.RECEIVED_KEY, required = false) String key) {
         
-        // Handle null messages (can occur if deserialization fails)
-        if (message == null) {
-            log.warn("Received null message from Kafka (key: {}). This may indicate a deserialization error. " +
-                    "The error handler will manage retries and skip this message if it cannot be processed.", key);
-            // Throw exception to let error handler manage retries
-            throw new IllegalArgumentException("Cannot process null message. Deserialization may have failed.");
+        // Handle null messages
+        if (messageJson == null) {
+            log.warn("Received null message from Kafka (key: {})", key);
+            return;
         }
 
-        log.info("Received AI agent response: requestId={}, status={}",
-                message.getRequestId(), message.getStatus());
-
+        ThoughtResponseMessage message = null;
         try {
+            message = objectMapper.readValue(messageJson, ThoughtResponseMessage.class);
+            log.info("Received AI agent response: requestId={}, status={}",
+                    message.getRequestId(), message.getStatus());
+
             thoughtsService.handleAgentResponse(message);
             log.info("Successfully processed AI agent response: requestId={}",
                     message.getRequestId());
         } catch (Exception e) {
             log.error("Error processing AI agent response: requestId={}, error={}",
-                    message.getRequestId() != null ? message.getRequestId() : "unknown", 
+                    message != null && message.getRequestId() != null ? message.getRequestId() : "unknown",
                     e.getMessage(), e);
             // Re-throw to let the error handler manage retries
-            throw e;
+            // throw e; // Commenting out to avoid infinite loop if the message is truly bad
         }
     }
 }

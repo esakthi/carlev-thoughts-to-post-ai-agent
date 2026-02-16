@@ -14,21 +14,28 @@ import { RouterLink } from '@angular/router';
       </div>
 
       <div class="dashboard-grid">
-        <div class="dashboard-card card fade-in" routerLink="/create">
+        <div class="dashboard-card card fade-in" routerLink="/thoughts/collection">
+          <div class="card-icon">🔍</div>
+          <h3>Thought Collection</h3>
+          <p class="text-muted">Search the internet for inspiration and latest trends.</p>
+          <span class="btn btn-primary">Collect Ideas →</span>
+        </div>
+
+        <div class="dashboard-card card fade-in" routerLink="/thoughts/create">
           <div class="card-icon">🚀</div>
           <h3>Create New Post</h3>
-          <p class="text-muted">Start transforming a new thought into social media content.</p>
+          <p class="text-muted">Transform your ideas into social media content.</p>
           <span class="btn btn-primary">Get Started →</span>
         </div>
 
-        <div class="dashboard-card card fade-in" routerLink="/pending">
+        <div class="dashboard-card card fade-in" routerLink="/posts/pending">
           <div class="card-icon">⏳</div>
           <h3>Pending Review</h3>
           <p class="text-muted">Review and edit your enriched posts before they go live.</p>
           <span class="btn btn-secondary">Review Posts →</span>
         </div>
 
-        <div class="dashboard-card card fade-in" routerLink="/history">
+        <div class="dashboard-card card fade-in" routerLink="/posts/history">
           <div class="card-icon">📜</div>
           <h3>Post History</h3>
           <p class="text-muted">View your previously shared content and engagement.</p>

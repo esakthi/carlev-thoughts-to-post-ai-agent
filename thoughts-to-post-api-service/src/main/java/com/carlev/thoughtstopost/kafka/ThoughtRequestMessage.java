@@ -22,6 +22,7 @@ public class ThoughtRequestMessage {
     private String requestId;
     private String userId;
     private String originalThought;
+    private String modelRole;
     private List<PlatformType> platforms;
     private String additionalInstructions;
     private Integer version;

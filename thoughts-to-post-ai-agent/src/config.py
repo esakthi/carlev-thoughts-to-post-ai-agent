@@ -21,6 +21,14 @@ class Settings(BaseSettings):
         default="thoughts-to-post-response",
         description="Topic to publish enrichment responses to"
     )
+    kafka_search_request_topic: str = Field(
+        default="thoughts-search-request",
+        description="Topic to consume search requests from"
+    )
+    kafka_search_response_topic: str = Field(
+        default="thoughts-search-response",
+        description="Topic to publish search responses to"
+    )
     kafka_consumer_group: str = Field(
         default="ai-agent-group",
         description="Kafka consumer group ID"

@@ -8,8 +8,9 @@ from typing import Optional
 from kafka import KafkaProducer as KafkaPythonProducer
 from kafka.errors import KafkaError
 
+from pydantic import BaseModel
 from ..config import settings
-from ..models import AgentResponse
+from ..models import AgentResponse, SearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -66,20 +67,29 @@ class KafkaResponseProducer:
             self._producer = self._create_producer()
             logger.info(f"Kafka producer connected to {self.bootstrap_servers}")
 
-    def send(self, response: AgentResponse) -> None:
-        """Send an enrichment response to Kafka.
+    def send(self, response: BaseModel, topic: Optional[str] = None) -> None:
+        """Send a response to Kafka.
 
         Args:
-            response: The AgentResponse to send
+            response: The response model to send
+            topic: Optional topic override
         """
         if not self._producer:
             self.connect()
 
+        target_topic = topic or self.topic
+
+        # Determine key
+        key = None
+        if hasattr(response, "request_id"):
+            key = response.request_id
+        elif hasattr(response, "correlation_id"):
+            key = response.correlation_id
+
         try:
-            # Use request_id as the message key for partitioning
             future = self._producer.send(
-                self.topic,
-                key=response.request_id,
+                target_topic,
+                key=key,
                 value=response.model_dump(),
             )
 

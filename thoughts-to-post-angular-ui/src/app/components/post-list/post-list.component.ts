@@ -13,13 +13,13 @@ import { ThoughtsService } from '../../services/thoughts.service';
       @if (thoughts.length === 0) {
         <div class="empty-state card-glass fade-in">
           <p class="text-secondary">{{ emptyMessage }}</p>
-          <a routerLink="/create" class="btn btn-primary mt-md">Create Your First Post</a>
+          <a routerLink="/thoughts/create" class="btn btn-primary mt-md">Create Your First Post</a>
         </div>
       } @else {
         <div class="list-container">
           @for (thought of thoughts; track thought.id) {
             <div class="post-item card fade-in">
-              <div class="post-header" [routerLink]="['/view', thought.id]">
+              <div class="post-header" [routerLink]="['/posts/view', thought.id]">
                 <div class="status-category">
                   <span class="status-badge" [ngClass]="thought.status.toLowerCase()">
                     {{ getStatusLabel(thought.status) }}
@@ -31,10 +31,10 @@ import { ThoughtsService } from '../../services/thoughts.service';
                   <button class="btn-delete" (click)="onDelete($event, thought.id)" title="Delete Post">🗑️</button>
                 </div>
               </div>
-              <div class="post-preview" [routerLink]="['/view', thought.id]">
+              <div class="post-preview" [routerLink]="['/posts/view', thought.id]">
                 <p class="thought-text text-truncate">{{ thought.originalThought }}</p>
               </div>
-              <div class="post-footer" [routerLink]="['/view', thought.id]">
+              <div class="post-footer" [routerLink]="['/posts/view', thought.id]">
                 <div class="platforms">
                   @for (platform of thought.selectedPlatforms; track platform) {
                     <span class="platform-dot" [ngClass]="platform.toLowerCase()" [title]="PLATFORM_CONFIG[platform].label"></span>
