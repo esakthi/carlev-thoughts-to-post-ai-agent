@@ -8,6 +8,8 @@ from .dataclasses import (
     AgentResponse,
     PlatformType,
     RequestStatus,
+    SearchRequest,
+    SearchResponse,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "AgentResponse",
     "PlatformType",
     "RequestStatus",
+    "SearchRequest",
+    "SearchResponse",
 ]

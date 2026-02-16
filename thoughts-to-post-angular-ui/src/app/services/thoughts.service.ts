@@ -5,7 +5,10 @@ import {
     ThoughtResponse,
     CreateThoughtRequest,
     ApproveThoughtRequest,
-    ThoughtHistory
+    ThoughtHistory,
+    ThoughtCategory,
+    SearchCriteriaRequest,
+    SearchExecuteRequest
 } from '../models/thought.models';
 
 @Injectable({
@@ -15,6 +18,8 @@ export class ThoughtsService {
     private readonly http = inject(HttpClient);
     private readonly apiUrl = 'http://localhost:8080/api/thoughts';
     private readonly oauthUrl = 'http://localhost:8080/api/oauth';
+    private readonly categoryUrl = 'http://localhost:8080/api/categories';
+    private readonly searchUrl = 'http://localhost:8080/api/search';
 
     // User ID header - in production, this would come from auth service
     private readonly userId = 'user-123';
@@ -69,10 +74,52 @@ export class ThoughtsService {
     }
 
     /**
-     * Get available categories
+     * Get available category names
      */
     getCategories(): Observable<string[]> {
         return this.http.get<string[]>(`${this.apiUrl}/categories`, { headers: this.headers });
+    }
+
+    /**
+     * Get all full category objects
+     */
+    getFullCategories(): Observable<ThoughtCategory[]> {
+        return this.http.get<ThoughtCategory[]>(this.categoryUrl, { headers: this.headers });
+    }
+
+    /**
+     * Create a new category
+     */
+    createCategory(category: ThoughtCategory): Observable<ThoughtCategory> {
+        return this.http.post<ThoughtCategory>(this.categoryUrl, category, { headers: this.headers });
+    }
+
+    /**
+     * Update an existing category
+     */
+    updateCategory(id: string, category: ThoughtCategory): Observable<ThoughtCategory> {
+        return this.http.put<ThoughtCategory>(`${this.categoryUrl}/${id}`, category, { headers: this.headers });
+    }
+
+    /**
+     * Delete a category
+     */
+    deleteCategory(id: string): Observable<void> {
+        return this.http.delete<void>(`${this.categoryUrl}/${id}`, { headers: this.headers });
+    }
+
+    /**
+     * Generate search criteria
+     */
+    generateSearchCriteria(request: SearchCriteriaRequest): Observable<string> {
+        return this.http.post(`${this.searchUrl}/generate-criteria`, request, { headers: this.headers, responseType: 'text' });
+    }
+
+    /**
+     * Execute internet search
+     */
+    executeSearch(request: SearchExecuteRequest): Observable<string> {
+        return this.http.post(`${this.searchUrl}/execute`, request, { headers: this.headers, responseType: 'text' });
     }
 
     /**

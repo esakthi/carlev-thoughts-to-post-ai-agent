@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG } from '../../models/thought.models';
 import { ThoughtsService } from '../../services/thoughts.service';
 
@@ -215,6 +216,7 @@ import { ThoughtsService } from '../../services/thoughts.service';
 })
 export class ThoughtInputComponent implements OnInit {
     private readonly thoughtsService = inject(ThoughtsService);
+    private readonly router = inject(Router);
 
     @Input() isLoading = false;
     @Output() submitThought = new EventEmitter<CreateThoughtRequest>();
@@ -232,6 +234,18 @@ export class ThoughtInputComponent implements OnInit {
     ngOnInit() {
         this.checkLinkedInStatus();
         this.loadCategories();
+        this.handleNavigationState();
+    }
+
+    handleNavigationState() {
+        const navigation = this.router.getCurrentNavigation();
+        const state = window.history.state;
+        if (state && state.content) {
+            this.thought = state.content;
+        }
+        if (state && state.category) {
+            this.selectedCategory = state.category;
+        }
     }
 
     loadCategories() {

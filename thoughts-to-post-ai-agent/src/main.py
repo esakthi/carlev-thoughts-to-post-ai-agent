@@ -7,12 +7,14 @@ from typing import Optional
 
 from .config import settings
 from .kafka import KafkaRequestConsumer, KafkaResponseProducer
-from .agents import ContentEnrichmentAgent, ImageGenerationAgent
+from .agents import ContentEnrichmentAgent, ImageGenerationAgent, SearchAgent
 from .memory import CheckpointMemory
 from .models import (
     ThoughtRequest,
     AgentResponse,
     RequestStatus,
+    SearchRequest,
+    SearchResponse,
 )
 
 # Configure logging
@@ -36,6 +38,7 @@ class ThoughtsToPostAgent:
         self.producer = KafkaResponseProducer()
         self.content_agent = ContentEnrichmentAgent()
         self.image_agent = ImageGenerationAgent()
+        self.search_agent = SearchAgent()
         self.memory = CheckpointMemory(persist_dir="./checkpoints")
         self._shutdown_requested = False
 
@@ -136,6 +139,40 @@ class ThoughtsToPostAgent:
 
             self.producer.send(error_response)
 
+    def process_search_request(self, request: SearchRequest) -> None:
+        """Process a search-related request.
+
+        Args:
+            request: The search request to process
+        """
+        logger.info(f"Processing search request: {request.correlation_id} (type={request.type})")
+
+        try:
+            if request.type == "GENERATE_CRITERIA":
+                result = self.search_agent.generate_search_string(
+                    request.category or "General",
+                    request.description or ""
+                )
+            elif request.type == "EXECUTE_SEARCH":
+                result = self.search_agent.execute_search(request.search_string or "")
+            else:
+                raise ValueError(f"Unknown search request type: {request.type}")
+
+            response = SearchResponse(
+                correlation_id=request.correlation_id,
+                result=result
+            )
+            self.producer.send(response, topic=settings.kafka_search_response_topic)
+            logger.info(f"Successfully processed search request: {request.correlation_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to process search request {request.correlation_id}: {e}")
+            response = SearchResponse(
+                correlation_id=request.correlation_id,
+                error=str(e)
+            )
+            self.producer.send(response, topic=settings.kafka_search_response_topic)
+
     def start(self) -> None:
         """Start the agent and begin processing messages."""
         logger.info("=" * 60)
@@ -154,7 +191,10 @@ class ThoughtsToPostAgent:
             self.producer.connect()
 
             # Start consuming messages (blocking)
-            self.consumer.start(self.process_request)
+            self.consumer.start(
+                thought_handler=self.process_request,
+                search_handler=self.process_search_request
+            )
 
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt received")

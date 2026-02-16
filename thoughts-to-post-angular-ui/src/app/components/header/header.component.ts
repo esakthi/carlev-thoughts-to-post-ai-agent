@@ -14,9 +14,22 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
             <span class="logo-text">Thoughts to Post</span>
           </div>
           <nav class="nav">
-            <a class="nav-item" routerLink="/create" routerLinkActive="active">Create</a>
-            <a class="nav-item" routerLink="/pending" routerLinkActive="active">Pending</a>
-            <a class="nav-item" routerLink="/history" routerLinkActive="active">History</a>
+            <a class="nav-item" routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+            <div class="nav-dropdown">
+              <span class="nav-item dropdown-toggle">Thoughts</span>
+              <div class="dropdown-menu">
+                <a routerLink="/thoughts/collection">Collection</a>
+                <a routerLink="/thoughts/create">Create</a>
+              </div>
+            </div>
+            <div class="nav-dropdown">
+              <span class="nav-item dropdown-toggle">Posts</span>
+              <div class="dropdown-menu">
+                <a routerLink="/posts/pending">Pending</a>
+                <a routerLink="/posts/history">History</a>
+              </div>
+            </div>
+            <a class="nav-item" routerLink="/admin/categories" routerLinkActive="active">Admin</a>
           </nav>
         </div>
       </div>
@@ -61,6 +74,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
     .nav {
       display: flex;
       gap: var(--spacing-lg);
+      align-items: center;
     }
 
     .nav-item {
@@ -85,6 +99,46 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         background: var(--primary-gradient);
         border-radius: 1px;
       }
+    }
+
+    .nav-dropdown {
+      position: relative;
+      display: inline-block;
+
+      &:hover .dropdown-menu {
+        display: block;
+      }
+    }
+
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      background-color: var(--bg-card);
+      min-width: 160px;
+      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+      z-index: 1;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+      top: 100%;
+      left: 0;
+
+      a {
+        color: var(--text-secondary);
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+        transition: background 0.3s;
+
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.05);
+          color: var(--text-primary);
+        }
+      }
+    }
+
+    .dropdown-toggle::after {
+      content: ' ▼';
+      font-size: 0.6rem;
     }
   `]
 })

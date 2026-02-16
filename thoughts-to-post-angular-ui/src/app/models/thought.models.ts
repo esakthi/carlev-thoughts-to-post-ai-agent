@@ -67,6 +67,22 @@ export interface ThoughtHistory {
     status: PostStatus;
 }
 
+export interface ThoughtCategory {
+    id?: string;
+    category: string;
+    searchDescription: string;
+    modelRole: string;
+}
+
+export interface SearchCriteriaRequest {
+    category: string;
+    description: string;
+}
+
+export interface SearchExecuteRequest {
+    searchString: string;
+}
+
 export const PLATFORM_CONFIG: Record<PlatformType, { label: string; icon: string; color: string }> = {
     LINKEDIN: { label: 'LinkedIn', icon: 'in', color: '#0077b5' },
     FACEBOOK: { label: 'Facebook', icon: 'f', color: '#1877f2' },

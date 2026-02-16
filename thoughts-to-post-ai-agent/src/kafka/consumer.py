@@ -58,8 +58,12 @@ class KafkaRequestConsumer:
 
     def _create_consumer(self) -> KafkaPythonConsumer:
         """Create and configure the Kafka consumer."""
+        topics = [self.topic]
+        if settings.kafka_search_request_topic:
+            topics.append(settings.kafka_search_request_topic)
+
         return KafkaPythonConsumer(
-            self.topic,
+            *topics,
             bootstrap_servers=self.bootstrap_servers.split(","),
             group_id=self.group_id,
             auto_offset_reset="earliest",
@@ -70,11 +74,16 @@ class KafkaRequestConsumer:
             session_timeout_ms=30000,
         )
 
-    def start(self, message_handler: Callable[[ThoughtRequest], None]) -> None:
-        """Start consuming messages and process them with the handler.
+    def start(
+        self,
+        thought_handler: Callable[[ThoughtRequest], None],
+        search_handler: Optional[Callable[["SearchRequest"], None]] = None,
+    ) -> None:
+        """Start consuming messages and process them with the appropriate handler.
 
         Args:
-            message_handler: Callback function to process each ThoughtRequest
+            thought_handler: Callback for ThoughtRequest messages
+            search_handler: Optional callback for SearchRequest messages
         """
         self._consumer = self._create_consumer()
         self._running = True
@@ -138,11 +147,18 @@ class KafkaRequestConsumer:
                                 )
                                 continue
 
-                            # Parse the message into ThoughtRequest
-                            logger.info(f"Before parsing ThoughtRequest: Record value: {record.value}")
-                            thought_request = ThoughtRequest(**record.value)
-                            logger.info(f"Successfully parsed ThoughtRequest: request_id={thought_request.request_id}")
-                            message_handler(thought_request)
+                            # Parse based on topic
+                            if record.topic == settings.kafka_search_request_topic and search_handler:
+                                from ..models import SearchRequest
+                                logger.info(f"Parsing SearchRequest from {record.topic}")
+                                search_request = SearchRequest(**record.value)
+                                search_handler(search_request)
+                            else:
+                                # Parse the message into ThoughtRequest
+                                logger.info(f"Parsing ThoughtRequest from {record.topic}")
+                                thought_request = ThoughtRequest(**record.value)
+                                logger.info(f"Successfully parsed ThoughtRequest: request_id={thought_request.request_id}")
+                                thought_handler(thought_request)
 
                         except Exception as e:
                             logger.error(

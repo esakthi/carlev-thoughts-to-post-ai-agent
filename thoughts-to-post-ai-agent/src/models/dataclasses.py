@@ -51,6 +51,11 @@ class ThoughtRequest(BaseModel):
         alias="originalThought",
         description="The original thought/topic from user",
     )
+    model_role: Optional[str] = Field(
+        default=None,
+        alias="modelRole",
+        description="The role/prompt for the model associated with the category",
+    )
     platforms: list[PlatformType] = Field(
         default_factory=list,
         alias="platforms",
@@ -203,6 +208,28 @@ class AgentContext:
         self.status = status
         self.error_message = error
         self.updated_at = datetime.utcnow()
+
+
+class SearchRequest(BaseModel):
+    """Input request for internet search."""
+
+    correlation_id: str = Field(..., alias="correlationId")
+    type: str = Field(...)  # GENERATE_CRITERIA or EXECUTE_SEARCH
+    category: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(default=None)
+    search_string: Optional[str] = Field(default=None, alias="searchString")
+
+    class Config:
+        allow_population_by_field_name = True
+        populate_by_name = True
+
+
+class SearchResponse(BaseModel):
+    """Response for internet search."""
+
+    correlation_id: str = Field(..., alias="correlationId")
+    result: Optional[str] = Field(default=None)
+    error: Optional[str] = Field(default=None)
 
 
 class AgentResponse(BaseModel):

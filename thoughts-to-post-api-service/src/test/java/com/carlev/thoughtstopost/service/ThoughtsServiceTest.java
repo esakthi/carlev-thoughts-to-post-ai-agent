@@ -35,6 +35,9 @@ public class ThoughtsServiceTest {
     private AppConfigRepository configRepository;
 
     @Mock
+    private com.carlev.thoughtstopost.repository.ThoughtCategoryRepository thoughtCategoryRepository;
+
+    @Mock
     private com.carlev.thoughtstopost.kafka.ThoughtsKafkaProducer kafkaProducer;
 
     @Mock
@@ -44,7 +47,7 @@ public class ThoughtsServiceTest {
 
     @BeforeEach
     void setUp() {
-        thoughtsService = new ThoughtsService(thoughtsRepository, historyRepository, configRepository, kafkaProducer, socialMediaService);
+        thoughtsService = new ThoughtsService(thoughtsRepository, historyRepository, configRepository, thoughtCategoryRepository, kafkaProducer, socialMediaService);
     }
 
     @Test

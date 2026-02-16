@@ -93,12 +93,20 @@ class ContentEnrichmentAgent:
             logger.info(f"Initialized Ollama LLM with model: {self.model_name}")
         return self._llm
 
-    def _get_prompt_template(self, platform: PlatformType) -> ChatPromptTemplate:
-        """Create a prompt template for the given platform."""
+    def _get_prompt_template(
+        self, platform: PlatformType, custom_role: Optional[str] = None
+    ) -> ChatPromptTemplate:
+        """Create a prompt template for the given platform.
+
+        Args:
+            platform: Target social media platform
+            custom_role: Optional custom role from thought category
+        """
         platform_prompt = PLATFORM_PROMPTS.get(platform, PLATFORM_PROMPTS[PlatformType.LINKEDIN])
+        system_role = custom_role if custom_role else BASE_SYSTEM_PROMPT
 
         return ChatPromptTemplate.from_messages([
-            ("system", BASE_SYSTEM_PROMPT + "\n\n" + platform_prompt),
+            ("system", system_role + "\n\n" + platform_prompt),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}"),
         ])
@@ -136,7 +144,7 @@ class ContentEnrichmentAgent:
             EnrichedContent with the enriched post content
         """
         llm = self._get_llm()
-        prompt = self._get_prompt_template(platform)
+        prompt = self._get_prompt_template(platform, custom_role=request.model_role)
 
         # Build the input message
         input_text = f"Original thought/topic: {request.original_thought}"
@@ -226,6 +234,7 @@ class ContentEnrichmentAgent:
         request_id: str,
         platform: PlatformType,
         refinement_instruction: str,
+        custom_role: Optional[str] = None,
     ) -> EnrichedContent:
         """Refine previously generated content based on feedback.
 
@@ -238,7 +247,7 @@ class ContentEnrichmentAgent:
             Refined EnrichedContent
         """
         llm = self._get_llm()
-        prompt = self._get_prompt_template(platform)
+        prompt = self._get_prompt_template(platform, custom_role=custom_role)
         history = self._get_history(request_id)
 
         if not history:

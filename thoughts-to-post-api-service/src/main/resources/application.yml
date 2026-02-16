@@ -30,6 +30,8 @@ app:
   kafka:
     request-topic: thoughts-post-request
     response-topic: thoughts-to-post-response
+    search-request-topic: thoughts-search-request
+    search-response-topic: thoughts-search-response
 
   # LinkedIn OAuth Configuration
   linkedin:
