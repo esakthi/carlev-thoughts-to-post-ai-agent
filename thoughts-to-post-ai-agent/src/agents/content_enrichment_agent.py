@@ -93,19 +93,35 @@ class ContentEnrichmentAgent:
             logger.info(f"Initialized Ollama LLM with model: {self.model_name}")
         return self._llm
 
-    def _get_prompt_template(self, platform: PlatformType) -> ChatPromptTemplate:
-        """Create a prompt template for the given platform."""
-        platform_prompt = PLATFORM_PROMPTS.get(platform, PLATFORM_PROMPTS[PlatformType.LINKEDIN])
+    def _get_prompt_template(
+        self, platform: PlatformType, request: ThoughtRequest
+    ) -> ChatPromptTemplate:
+        """Create a prompt template for the given platform using dynamic prompts from request."""
+        # Use dynamic system prompt from request, fallback to hardcoded if not provided
+        system_prompt = request.model_role or BASE_SYSTEM_PROMPT
+
+        # Include category description if available
+        if request.search_description:
+            system_prompt += f"\n\nCategory Context: {request.search_description}"
+
+        # Use platform-specific prompt from request, fallback to hardcoded
+        platform_prompt = request.platform_prompts.get(platform)
+        if not platform_prompt:
+            platform_prompt = PLATFORM_PROMPTS.get(platform, PLATFORM_PROMPTS[PlatformType.LINKEDIN])
 
         return ChatPromptTemplate.from_messages([
-            ("system", BASE_SYSTEM_PROMPT + "\n\n" + platform_prompt),
+            ("system", system_prompt + "\n\n" + platform_prompt),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}"),
         ])
 
-    def _get_history(self, request_id: str) -> list:
+    def get_history(self, request_id: str) -> list:
         """Get conversation history for a request."""
         return self._conversation_history.get(request_id, [])
+
+    def set_history(self, request_id: str, history: list) -> None:
+        """Set conversation history for a request."""
+        self._conversation_history[request_id] = history
 
     def _add_to_history(
         self, request_id: str, human_msg: str, ai_msg: str
@@ -136,7 +152,7 @@ class ContentEnrichmentAgent:
             EnrichedContent with the enriched post content
         """
         llm = self._get_llm()
-        prompt = self._get_prompt_template(platform)
+        prompt = self._get_prompt_template(platform, request)
 
         # Build the input message
         input_text = f"Original thought/topic: {request.original_thought}"
@@ -146,7 +162,7 @@ class ContentEnrichmentAgent:
             input_text += f"\n\nContext: {additional_context}"
 
         # Get conversation history for refinements
-        history = self._get_history(request.request_id)
+        history = self.get_history(request.request_id)
 
         # Create and run the chain
         chain = prompt | llm | StrOutputParser()
@@ -223,14 +239,14 @@ class ContentEnrichmentAgent:
 
     def refine_content(
         self,
-        request_id: str,
+        request: ThoughtRequest,
         platform: PlatformType,
         refinement_instruction: str,
     ) -> EnrichedContent:
         """Refine previously generated content based on feedback.
 
         Args:
-            request_id: Original request ID (for history lookup)
+            request: The thought request (for dynamic prompts and history lookup)
             platform: Target platform
             refinement_instruction: What to change/improve
 
@@ -238,11 +254,11 @@ class ContentEnrichmentAgent:
             Refined EnrichedContent
         """
         llm = self._get_llm()
-        prompt = self._get_prompt_template(platform)
-        history = self._get_history(request_id)
+        prompt = self._get_prompt_template(platform, request)
+        history = self.get_history(request.request_id)
 
         if not history:
-            raise ValueError(f"No history found for request {request_id}")
+            raise ValueError(f"No history found for request {request.request_id}")
 
         input_text = f"Please refine the content with the following feedback: {refinement_instruction}"
 

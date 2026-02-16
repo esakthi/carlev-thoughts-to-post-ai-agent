@@ -32,6 +32,8 @@ public class ThoughtsService {
     private final ThoughtsToPostHistoryRepository historyRepository;
     private final ThoughtsKafkaProducer kafkaProducer;
     private final SocialMediaService socialMediaService;
+    private final com.carlev.thoughtstopost.repository.ThoughtCategoryRepository categoryRepository;
+    private final com.carlev.thoughtstopost.repository.PlatformPromptRepository platformPromptRepository;
 
     /**
      * Create a new thought post and send it to the AI agent for enrichment.
@@ -47,6 +49,7 @@ public class ThoughtsService {
         // Create the document
         ThoughtsToPost thought = ThoughtsToPost.builder()
                 .userId(userId)
+                .categoryId(request.getCategoryId())
                 .originalThought(request.getThought())
                 .selectedPlatforms(request.getPlatforms())
                 .status(PostStatus.PENDING)
@@ -83,6 +86,15 @@ public class ThoughtsService {
      */
     public List<ThoughtResponse> getUserThoughts(String userId) {
         return thoughtsRepository.findByUserId(userId).stream()
+                .map(ThoughtResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get thoughts for a user filtered by platform.
+     */
+    public List<ThoughtResponse> getUserThoughtsByPlatform(String userId, com.carlev.thoughtstopost.model.PlatformType platform) {
+        return thoughtsRepository.findByUserIdAndSelectedPlatformsContains(userId, platform).stream()
                 .map(ThoughtResponse::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -327,12 +339,34 @@ public class ThoughtsService {
      * Send thought to AI agent via Kafka.
      */
     private void sendToAiAgent(ThoughtsToPost thought, String additionalInstructions) {
+        // Fetch category details
+        String categoryId = thought.getCategoryId();
+        com.carlev.thoughtstopost.model.ThoughtCategory category = null;
+        if (categoryId != null) {
+            category = categoryRepository.findById(categoryId).orElse(null);
+        }
+
+        // If no category or category not found, use Default
+        if (category == null) {
+            category = categoryRepository.findByThoughtCategory("Default").orElse(null);
+        }
+
+        // Fetch platform prompts
+        java.util.Map<com.carlev.thoughtstopost.model.PlatformType, String> platformPrompts = new java.util.HashMap<>();
+        for (com.carlev.thoughtstopost.model.PlatformType platform : thought.getSelectedPlatforms()) {
+            platformPromptRepository.findByPlatform(platform)
+                    .ifPresent(p -> platformPrompts.put(platform, p.getPromptText()));
+        }
+
         ThoughtRequestMessage message = ThoughtRequestMessage.builder()
                 .requestId(thought.getId())
                 .userId(thought.getUserId())
                 .originalThought(thought.getOriginalThought())
                 .platforms(thought.getSelectedPlatforms())
                 .additionalInstructions(additionalInstructions)
+                .modelRole(category != null ? category.getModelRole() : null)
+                .searchDescription(category != null ? category.getSearchDescription() : null)
+                .platformPrompts(platformPrompts)
                 .version(thought.getVersion() != null ? thought.getVersion().intValue() : 1)
                 .createdAt(LocalDateTime.now())
                 .build();

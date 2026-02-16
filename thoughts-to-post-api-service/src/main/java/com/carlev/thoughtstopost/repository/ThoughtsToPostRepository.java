@@ -37,4 +37,9 @@ public interface ThoughtsToPostRepository extends MongoRepository<ThoughtsToPost
      * Find all pending thoughts ordered by creation date.
      */
     List<ThoughtsToPost> findByStatusOrderByCreatedAtAsc(PostStatus status);
+
+    /**
+     * Find all thoughts by user ID and platform.
+     */
+    List<ThoughtsToPost> findByUserIdAndSelectedPlatformsContains(String userId, com.carlev.thoughtstopost.model.PlatformType platform);
 }

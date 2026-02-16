@@ -26,6 +26,8 @@ public class ThoughtsToPost {
 
     private String userId;
 
+    private String categoryId;
+
     private String originalThought;
 
     @Builder.Default

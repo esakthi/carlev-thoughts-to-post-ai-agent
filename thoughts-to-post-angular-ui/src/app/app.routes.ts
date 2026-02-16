@@ -7,9 +7,33 @@ import { ViewPostPageComponent } from './pages/view-post-page/view-post-page.com
 
 export const routes: Routes = [
     { path: '', component: LandingPageComponent },
-    { path: 'create', component: ThoughtsPageComponent },
-    { path: 'pending', component: PendingPostsPageComponent },
-    { path: 'history', component: HistoryPageComponent },
-    { path: 'view/:id', component: ViewPostPageComponent },
+    {
+        path: 'thoughts', children: [
+            { path: 'create', component: ThoughtsPageComponent }
+        ]
+    },
+    {
+        path: 'posts', children: [
+            { path: 'pending', component: PendingPostsPageComponent },
+            { path: 'history', component: HistoryPageComponent },
+            { path: 'view/:id', component: ViewPostPageComponent }
+        ]
+    },
+    {
+        path: 'platforms/:platform',
+        loadComponent: () => import('./pages/platform-posts-page/platform-posts-page.component').then(m => m.PlatformPostsPageComponent)
+    },
+    {
+        path: 'admin', children: [
+            {
+                path: 'categories',
+                loadComponent: () => import('./pages/admin/categories-page/categories-page.component').then(m => m.CategoriesPageComponent)
+            },
+            {
+                path: 'platform-prompts',
+                loadComponent: () => import('./pages/admin/platform-prompts-page/platform-prompts-page.component').then(m => m.PlatformPromptsPageComponent)
+            }
+        ]
+    },
     { path: '**', redirectTo: '' }
 ];
