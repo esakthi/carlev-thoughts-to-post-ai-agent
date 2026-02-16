@@ -61,6 +61,21 @@ class ThoughtRequest(BaseModel):
         alias="additionalInstructions",
         description="Additional instructions for enrichment",
     )
+    system_prompt: Optional[str] = Field(
+        default=None,
+        alias="systemPrompt",
+        description="Dynamic system prompt from the category",
+    )
+    category_description: Optional[str] = Field(
+        default=None,
+        alias="categoryDescription",
+        description="Description of the thought category",
+    )
+    platform_prompts: dict[PlatformType, str] = Field(
+        default_factory=dict,
+        alias="platformPrompts",
+        description="Platform-specific prompts from the database",
+    )
     version: int = Field(
         default=1,
         alias="version",
@@ -182,6 +197,9 @@ class AgentContext:
     user_id: str
     original_thought: str
     platforms: list[PlatformType]
+    system_prompt: Optional[str] = None
+    category_description: Optional[str] = None
+    platform_prompts: dict[PlatformType, str] = field(default_factory=dict)
     enriched_contents: list[EnrichedContent] = field(default_factory=list)
     generated_image: Optional[GeneratedImage] = None
     conversation_history: list[dict] = field(default_factory=list)

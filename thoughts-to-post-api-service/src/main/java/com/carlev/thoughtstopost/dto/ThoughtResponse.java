@@ -22,6 +22,7 @@ public class ThoughtResponse {
 
     private String id;
     private String userId;
+    private String categoryId;
     private String originalThought;
     private List<EnrichedContentDto> enrichedContents;
     private String generatedImageUrl;
@@ -72,6 +73,7 @@ public class ThoughtResponse {
         return ThoughtResponse.builder()
                 .id(entity.getId())
                 .userId(entity.getUserId())
+                .categoryId(entity.getCategoryId())
                 .originalThought(entity.getOriginalThought())
                 .enrichedContents(enrichedDtos)
                 .generatedImageUrl(entity.getGeneratedImageUrl())

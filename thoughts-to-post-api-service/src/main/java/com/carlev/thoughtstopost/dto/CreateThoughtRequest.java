@@ -22,6 +22,8 @@ public class CreateThoughtRequest {
     @NotBlank(message = "Thought content is required")
     private String thought;
 
+    private String categoryId;
+
     @NotEmpty(message = "At least one platform must be selected")
     private List<PlatformType> platforms;
 

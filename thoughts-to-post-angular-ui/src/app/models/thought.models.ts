@@ -26,6 +26,7 @@ export interface EnrichedContent {
 export interface ThoughtResponse {
     id: string;
     userId: string;
+    categoryId?: string;
     originalThought: string;
     enrichedContents: EnrichedContent[];
     generatedImageUrl?: string;
@@ -43,8 +44,26 @@ export interface ThoughtResponse {
 
 export interface CreateThoughtRequest {
     thought: string;
+    categoryId?: string;
     platforms: PlatformType[];
     additionalInstructions?: string;
+}
+
+export interface ThoughtCategory {
+    id?: string;
+    thoughtCategory: string;
+    description: string;
+    systemPrompt: string;
+    createdDateTime?: string;
+    updatedDateTime?: string;
+}
+
+export interface PlatformPrompt {
+    id?: string;
+    platform: PlatformType;
+    promptText: string;
+    createdDateTime?: string;
+    updatedDateTime?: string;
 }
 
 export interface ApproveThoughtRequest {
