@@ -12,12 +12,12 @@ import { ThoughtResponse, PLATFORM_CONFIG } from '../../models/thought.models';
       @if (thoughts.length === 0) {
         <div class="empty-state card-glass fade-in">
           <p class="text-secondary">{{ emptyMessage }}</p>
-          <a routerLink="/create" class="btn btn-primary mt-md">Create Your First Post</a>
+          <a routerLink="/thoughts/create" class="btn btn-primary mt-md">Create Your First Post</a>
         </div>
       } @else {
         <div class="list-container">
           @for (thought of thoughts; track thought.id) {
-            <div class="post-item card fade-in" [routerLink]="['/view', thought.id]">
+            <div class="post-item card fade-in" [routerLink]="['/posts/view', thought.id]">
               <div class="post-header">
                 <span class="status-badge" [ngClass]="thought.status.toLowerCase()">
                   {{ getStatusLabel(thought.status) }}

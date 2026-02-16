@@ -69,6 +69,8 @@ class CheckpointMemory:
         data = asdict(context)
         # Convert enums and complex types
         data["platforms"] = [p.value for p in context.platforms]
+        if context.platform_prompts:
+            data["platform_prompts"] = {p.value: v for p, v in context.platform_prompts.items()}
         data["status"] = context.status.value
         data["enriched_contents"] = [c.model_dump() for c in context.enriched_contents]
         if context.generated_image:
@@ -83,6 +85,10 @@ class CheckpointMemory:
 
         # Reconstruct complex types
         platforms = [PlatformType(p) for p in data.get("platforms", [])]
+
+        platform_prompts_raw = data.get("platform_prompts", {})
+        platform_prompts = {PlatformType(k): v for k, v in platform_prompts_raw.items()}
+
         status = RequestStatus(data.get("status", "pending"))
         enriched_contents = [
             EnrichedContent(**c) for c in data.get("enriched_contents", [])
@@ -96,6 +102,9 @@ class CheckpointMemory:
             user_id=data["user_id"],
             original_thought=data["original_thought"],
             platforms=platforms,
+            system_prompt=data.get("system_prompt"),
+            category_description=data.get("category_description"),
+            platform_prompts=platform_prompts,
             enriched_contents=enriched_contents,
             generated_image=generated_image,
             conversation_history=data.get("conversation_history", []),
@@ -121,6 +130,9 @@ class CheckpointMemory:
             user_id=request.user_id,
             original_thought=request.original_thought,
             platforms=request.platforms,
+            system_prompt=request.system_prompt,
+            category_description=request.category_description,
+            platform_prompts=request.platform_prompts,
             current_version=request.version,
         )
 

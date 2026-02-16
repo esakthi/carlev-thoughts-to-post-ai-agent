@@ -15,6 +15,7 @@ export class ThoughtsService {
     private readonly http = inject(HttpClient);
     private readonly apiUrl = 'http://localhost:8080/api/thoughts';
     private readonly oauthUrl = 'http://localhost:8080/api/oauth';
+    private readonly adminUrl = 'http://localhost:8080/api/admin';
 
     // User ID header - in production, this would come from auth service
     private readonly userId = 'user-123';
@@ -121,5 +122,35 @@ export class ThoughtsService {
      */
     getLinkedInAuthUrl(): Observable<{ authorizationUrl: string; state: string }> {
         return this.http.get<{ authorizationUrl: string; state: string }>(`${this.oauthUrl}/linkedin/authorize`, { headers: this.headers });
+    }
+
+    // Admin API - Thought Categories
+    getCategories(): Observable<any[]> {
+        return this.http.get<any[]>(`${this.adminUrl}/categories`, { headers: this.headers });
+    }
+
+    createCategory(category: any): Observable<any> {
+        return this.http.post<any>(`${this.adminUrl}/categories`, category, { headers: this.headers });
+    }
+
+    updateCategory(id: string, category: any): Observable<any> {
+        return this.http.put<any>(`${this.adminUrl}/categories/${id}`, category, { headers: this.headers });
+    }
+
+    deleteCategory(id: string): Observable<any> {
+        return this.http.delete<any>(`${this.adminUrl}/categories/${id}`, { headers: this.headers });
+    }
+
+    // Admin API - Platform Prompts
+    getPlatformPrompts(): Observable<any[]> {
+        return this.http.get<any[]>(`${this.adminUrl}/platform-prompts`, { headers: this.headers });
+    }
+
+    createPlatformPrompt(prompt: any): Observable<any> {
+        return this.http.post<any>(`${this.adminUrl}/platform-prompts`, prompt, { headers: this.headers });
+    }
+
+    updatePlatformPrompt(id: string, prompt: any): Observable<any> {
+        return this.http.put<any>(`${this.adminUrl}/platform-prompts/${id}`, prompt, { headers: this.headers });
     }
 }

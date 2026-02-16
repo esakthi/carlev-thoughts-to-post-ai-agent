@@ -10,8 +10,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * Main application entry point for the Thoughts-to-Post API Service.
  */
 @SpringBootApplication
-@EnableMongoAuditing
-@EnableScheduling
 public class ThoughtsToPostApplication {
 
     public static void main(String[] args) {

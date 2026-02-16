@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG } from '../../models/thought.models';
+import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG, ThoughtCategory } from '../../models/thought.models';
 import { ThoughtsService } from '../../services/thoughts.service';
 
 @Component({
@@ -25,6 +25,22 @@ import { ThoughtsService } from '../../services/thoughts.service';
           </button>
         </div>
       }
+
+      <div class="form-group">
+        <label class="form-label">Thought Category</label>
+        <select
+          class="form-input"
+          [(ngModel)]="selectedCategoryId"
+          name="categoryId"
+          required
+          [disabled]="isLoading"
+        >
+          <option value="" disabled selected>Select a category...</option>
+          @for (cat of categories(); track cat.id) {
+            <option [value]="cat.id">{{ cat.thoughtCategory }}</option>
+          }
+        </select>
+      </div>
 
       <div class="form-group">
         <label class="form-label">Your Thought or Topic</label>
@@ -211,7 +227,9 @@ export class ThoughtInputComponent implements OnInit {
     @Output() submitThought = new EventEmitter<CreateThoughtRequest>();
 
     thought = '';
+    selectedCategoryId = '';
     additionalInstructions = '';
+    categories = signal<ThoughtCategory[]>([]);
     selectedPlatforms = signal<PlatformType[]>(['LINKEDIN']);
     isLinkedInAuthorized = signal(false);
     isCheckingAuth = signal(false);
@@ -220,6 +238,23 @@ export class ThoughtInputComponent implements OnInit {
 
     ngOnInit() {
         this.checkLinkedInStatus();
+        this.loadCategories();
+    }
+
+    loadCategories() {
+        this.thoughtsService.getCategories().subscribe({
+            next: (cats) => {
+                this.categories.set(cats);
+                // If there's a Default category, select it
+                const defaultCat = cats.find(c => c.thoughtCategory === 'Default');
+                if (defaultCat) {
+                    this.selectedCategoryId = defaultCat.id!;
+                } else if (cats.length > 0) {
+                    this.selectedCategoryId = cats[0].id!;
+                }
+            },
+            error: (err) => console.error('Failed to load categories', err)
+        });
     }
 
     checkLinkedInStatus() {
@@ -281,6 +316,7 @@ export class ThoughtInputComponent implements OnInit {
 
         const request: CreateThoughtRequest = {
             thought: this.thought.trim(),
+            categoryId: this.selectedCategoryId,
             platforms: this.selectedPlatforms(),
             additionalInstructions: this.additionalInstructions.trim() || undefined
         };
