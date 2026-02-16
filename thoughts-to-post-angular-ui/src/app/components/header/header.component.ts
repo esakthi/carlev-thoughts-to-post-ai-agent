@@ -18,6 +18,14 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
             <a class="nav-item" routerLink="/posts/pending" routerLinkActive="active">Pending</a>
             <a class="nav-item" routerLink="/posts/history" routerLinkActive="active">History</a>
             <div class="nav-dropdown">
+              <span class="nav-item">Platforms ▾</span>
+              <div class="dropdown-content">
+                <a routerLink="/platforms/linkedin" routerLinkActive="active">LinkedIn</a>
+                <a routerLink="/platforms/facebook" routerLinkActive="active">Facebook</a>
+                <a routerLink="/platforms/instagram" routerLinkActive="active">Instagram</a>
+              </div>
+            </div>
+            <div class="nav-dropdown">
               <span class="nav-item">Admin ▾</span>
               <div class="dropdown-content">
                 <a routerLink="/admin/categories" routerLinkActive="active">Categories</a>

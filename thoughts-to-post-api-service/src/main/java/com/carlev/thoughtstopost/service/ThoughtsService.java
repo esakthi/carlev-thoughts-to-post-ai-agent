@@ -5,9 +5,13 @@ import com.carlev.thoughtstopost.dto.ThoughtResponse;
 import com.carlev.thoughtstopost.kafka.ThoughtRequestMessage;
 import com.carlev.thoughtstopost.kafka.ThoughtResponseMessage;
 import com.carlev.thoughtstopost.kafka.ThoughtsKafkaProducer;
+import com.carlev.thoughtstopost.model.PlatformType;
 import com.carlev.thoughtstopost.model.PostStatus;
+import com.carlev.thoughtstopost.model.ThoughtCategory;
 import com.carlev.thoughtstopost.model.ThoughtsToPost;
 import com.carlev.thoughtstopost.model.ThoughtsToPostHistory;
+import com.carlev.thoughtstopost.repository.PlatformPromptRepository;
+import com.carlev.thoughtstopost.repository.ThoughtCategoryRepository;
 import com.carlev.thoughtstopost.repository.ThoughtsToPostHistoryRepository;
 import com.carlev.thoughtstopost.repository.ThoughtsToPostRepository;
 import com.carlev.thoughtstopost.social.SocialMediaService;
@@ -32,8 +36,8 @@ public class ThoughtsService {
     private final ThoughtsToPostHistoryRepository historyRepository;
     private final ThoughtsKafkaProducer kafkaProducer;
     private final SocialMediaService socialMediaService;
-    private final com.carlev.thoughtstopost.repository.ThoughtCategoryRepository categoryRepository;
-    private final com.carlev.thoughtstopost.repository.PlatformPromptRepository platformPromptRepository;
+    private final ThoughtCategoryRepository categoryRepository;
+    private final PlatformPromptRepository platformPromptRepository;
 
     /**
      * Create a new thought post and send it to the AI agent for enrichment.
@@ -93,7 +97,7 @@ public class ThoughtsService {
     /**
      * Get thoughts for a user filtered by platform.
      */
-    public List<ThoughtResponse> getUserThoughtsByPlatform(String userId, com.carlev.thoughtstopost.model.PlatformType platform) {
+    public List<ThoughtResponse> getUserThoughtsByPlatform(String userId, PlatformType platform) {
         return thoughtsRepository.findByUserIdAndSelectedPlatformsContains(userId, platform).stream()
                 .map(ThoughtResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -341,7 +345,7 @@ public class ThoughtsService {
     private void sendToAiAgent(ThoughtsToPost thought, String additionalInstructions) {
         // Fetch category details
         String categoryId = thought.getCategoryId();
-        com.carlev.thoughtstopost.model.ThoughtCategory category = null;
+        ThoughtCategory category = null;
         if (categoryId != null) {
             category = categoryRepository.findById(categoryId).orElse(null);
         }
@@ -352,8 +356,8 @@ public class ThoughtsService {
         }
 
         // Fetch platform prompts
-        java.util.Map<com.carlev.thoughtstopost.model.PlatformType, String> platformPrompts = new java.util.HashMap<>();
-        for (com.carlev.thoughtstopost.model.PlatformType platform : thought.getSelectedPlatforms()) {
+        java.util.Map<PlatformType, String> platformPrompts = new java.util.HashMap<>();
+        for (PlatformType platform : thought.getSelectedPlatforms()) {
             platformPromptRepository.findByPlatform(platform)
                     .ifPresent(p -> platformPrompts.put(platform, p.getPromptText()));
         }
