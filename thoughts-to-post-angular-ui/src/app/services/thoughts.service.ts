@@ -17,91 +17,95 @@ export class ThoughtsService {
     private readonly oauthUrl = 'http://localhost:8080/api/oauth';
     private readonly adminUrl = 'http://localhost:8080/api/admin';
 
-    // User ID header - in production, this would come from auth service
-    private readonly userId = 'user-123';
-
-    private get headers(): HttpHeaders {
-        return new HttpHeaders({
-            'Content-Type': 'application/json',
-            'X-User-Id': this.userId
-        });
-    }
-
     /**
      * Get thoughts by platform
      */
     getThoughtsByPlatform(platform: string): Observable<ThoughtResponse[]> {
-        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?platform=${platform.toUpperCase()}`, { headers: this.headers });
+        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?platform=${platform.toUpperCase()}`);
     }
 
     /**
      * Create a new thought and send for AI enrichment
      */
     createThought(request: CreateThoughtRequest): Observable<ThoughtResponse> {
-        return this.http.post<ThoughtResponse>(this.apiUrl, request, { headers: this.headers });
+        return this.http.post<ThoughtResponse>(this.apiUrl, request);
     }
 
     /**
      * Get a thought by ID
      */
     getThought(id: string): Observable<ThoughtResponse> {
-        return this.http.get<ThoughtResponse>(`${this.apiUrl}/${id}`, { headers: this.headers });
+        return this.http.get<ThoughtResponse>(`${this.apiUrl}/${id}`);
     }
 
     /**
      * Get all thoughts for the current user
      */
     getUserThoughts(): Observable<ThoughtResponse[]> {
-        return this.http.get<ThoughtResponse[]>(this.apiUrl, { headers: this.headers });
+        return this.http.get<ThoughtResponse[]>(this.apiUrl);
     }
 
     /**
      * Get thoughts by status
      */
     getThoughtsByStatus(status: string): Observable<ThoughtResponse[]> {
-        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?status=${status}`, { headers: this.headers });
+        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?status=${status}`);
     }
 
     /**
      * Get thoughts excluding a status
      */
     getThoughtsExcludingStatus(notStatus: string): Observable<ThoughtResponse[]> {
-        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?notStatus=${notStatus}`, { headers: this.headers });
+        return this.http.get<ThoughtResponse[]>(`${this.apiUrl}?notStatus=${notStatus}`);
     }
 
     /**
      * Get history for a thought
      */
     getThoughtHistory(id: string): Observable<ThoughtHistory[]> {
-        return this.http.get<ThoughtHistory[]>(`${this.apiUrl}/${id}/history`, { headers: this.headers });
+        return this.http.get<ThoughtHistory[]>(`${this.apiUrl}/${id}/history`);
     }
 
     /**
      * Approve a thought and post to social media
      */
     approveAndPost(id: string, request: ApproveThoughtRequest): Observable<ThoughtResponse> {
-        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/approve`, request, { headers: this.headers });
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/approve`, request);
     }
 
     /**
      * Reject a thought
      */
     rejectThought(id: string): Observable<ThoughtResponse> {
-        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/reject`, {}, { headers: this.headers });
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/reject`, {});
     }
 
     /**
      * Update enriched content of a thought
      */
     updateThought(id: string, thought: ThoughtResponse): Observable<ThoughtResponse> {
-        return this.http.put<ThoughtResponse>(`${this.apiUrl}/${id}`, thought, { headers: this.headers });
+        return this.http.put<ThoughtResponse>(`${this.apiUrl}/${id}`, thought);
     }
 
     /**
      * Resubmit a thought for re-enrichment
      */
     reenrichThought(id: string, additionalInstructions: string): Observable<ThoughtResponse> {
-        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/re-enrich`, { additionalInstructions }, { headers: this.headers });
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/re-enrich`, { additionalInstructions });
+    }
+
+    /**
+     * Delete a thought
+     */
+    deleteThought(id: string): Observable<void> {
+        return this.http.delete<void>(`${this.apiUrl}/${id}`);
+    }
+
+    /**
+     * Repost a thought
+     */
+    repostThought(id: string): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/repost`, {});
     }
 
     /**
@@ -121,43 +125,43 @@ export class ThoughtsService {
      * Get LinkedIn authorization status
      */
     getLinkedInStatus(): Observable<{ authorized: boolean }> {
-        return this.http.get<{ authorized: boolean }>(`${this.oauthUrl}/linkedin/status`, { headers: this.headers });
+        return this.http.get<{ authorized: boolean }>(`${this.oauthUrl}/linkedin/status`);
     }
 
     /**
      * Get LinkedIn authorization URL
      */
     getLinkedInAuthUrl(): Observable<{ authorizationUrl: string; state: string }> {
-        return this.http.get<{ authorizationUrl: string; state: string }>(`${this.oauthUrl}/linkedin/authorize`, { headers: this.headers });
+        return this.http.get<{ authorizationUrl: string; state: string }>(`${this.oauthUrl}/linkedin/authorize`);
     }
 
     // Admin API - Thought Categories
     getCategories(): Observable<any[]> {
-        return this.http.get<any[]>(`${this.adminUrl}/categories`, { headers: this.headers });
+        return this.http.get<any[]>(`${this.adminUrl}/categories`);
     }
 
     createCategory(category: any): Observable<any> {
-        return this.http.post<any>(`${this.adminUrl}/categories`, category, { headers: this.headers });
+        return this.http.post<any>(`${this.adminUrl}/categories`, category);
     }
 
     updateCategory(id: string, category: any): Observable<any> {
-        return this.http.put<any>(`${this.adminUrl}/categories/${id}`, category, { headers: this.headers });
+        return this.http.put<any>(`${this.adminUrl}/categories/${id}`, category);
     }
 
     deleteCategory(id: string): Observable<any> {
-        return this.http.delete<any>(`${this.adminUrl}/categories/${id}`, { headers: this.headers });
+        return this.http.delete<any>(`${this.adminUrl}/categories/${id}`);
     }
 
     // Admin API - Platform Prompts
     getPlatformPrompts(): Observable<any[]> {
-        return this.http.get<any[]>(`${this.adminUrl}/platform-prompts`, { headers: this.headers });
+        return this.http.get<any[]>(`${this.adminUrl}/platform-prompts`);
     }
 
     createPlatformPrompt(prompt: any): Observable<any> {
-        return this.http.post<any>(`${this.adminUrl}/platform-prompts`, prompt, { headers: this.headers });
+        return this.http.post<any>(`${this.adminUrl}/platform-prompts`, prompt);
     }
 
     updatePlatformPrompt(id: string, prompt: any): Observable<any> {
-        return this.http.put<any>(`${this.adminUrl}/platform-prompts/${id}`, prompt, { headers: this.headers });
+        return this.http.put<any>(`${this.adminUrl}/platform-prompts/${id}`, prompt);
     }
 }

@@ -18,12 +18,19 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
           </span>
           <span class="version text-muted">v{{ thought.version }}</span>
         </div>
-        @if (isProcessing) {
-          <div class="processing-indicator">
-            <span class="spinner"></span>
-            <span class="text-secondary">AI is working...</span>
-          </div>
-        }
+        <div class="status-actions">
+          @if (isProcessing) {
+            <div class="processing-indicator">
+              <span class="spinner"></span>
+              <span class="text-secondary">AI is working...</span>
+            </div>
+          } @else {
+            @if (canRepost()) {
+              <button class="btn btn-primary btn-sm" (click)="repost.emit()">🔄 Repost</button>
+            }
+            <button class="btn btn-danger btn-sm" (click)="onDelete()">🗑️ Delete</button>
+          }
+        </div>
       </div>
 
       @if (thought.status === 'ENRICHED') {
@@ -589,6 +596,8 @@ export class EnrichedContentComponent {
     @Input() isProcessing = false;
     @Output() approve = new EventEmitter<ApproveThoughtRequest>();
     @Output() reject = new EventEmitter<void>();
+    @Output() delete = new EventEmitter<void>();
+    @Output() repost = new EventEmitter<void>();
     @Output() updateContent = new EventEmitter<ThoughtResponse>();
     @Output() reenrich = new EventEmitter<string>();
 
@@ -639,6 +648,12 @@ export class EnrichedContentComponent {
         this.reenrich.emit(this.textContentComments);
     }
 
+    onDelete() {
+        if (confirm('Are you sure you want to delete this thought? This action cannot be undone.')) {
+            this.delete.emit();
+        }
+    }
+
     sanitizeUrl(url: string): SafeUrl {
         if (url && url.startsWith('data:')) {
             return this.sanitizer.bypassSecurityTrustUrl(url);
@@ -652,6 +667,10 @@ export class EnrichedContentComponent {
 
     canResubmit(): boolean {
         return this.thought.status === 'ENRICHED' || this.thought.status === 'FAILED' || this.thought.status === 'REJECTED';
+    }
+
+    canRepost(): boolean {
+        return this.thought.status === 'POSTED' || this.thought.status === 'REJECTED' || this.thought.status === 'FAILED';
     }
 
     getStatusLabel(status: string): string {

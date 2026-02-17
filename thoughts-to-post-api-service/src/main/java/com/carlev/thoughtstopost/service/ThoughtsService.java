@@ -74,10 +74,10 @@ public class ThoughtsService {
     }
 
     /**
-     * Get a thought by ID.
+     * Get a thought by ID for a specific user.
      */
-    public ThoughtResponse getThought(String id) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+    public ThoughtResponse getThought(String id, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
         // print this whole object as json in the logs
         log.info("Thought shared by User to AI for enriching has been Retrieved from MongoDB, thought Details: {}",
@@ -122,9 +122,13 @@ public class ThoughtsService {
     }
 
     /**
-     * Get history for a thought.
+     * Get history for a thought for a specific user.
      */
-    public List<ThoughtsToPostHistory> getThoughtHistory(String thoughtId) {
+    public List<ThoughtsToPostHistory> getThoughtHistory(String thoughtId, String userId) {
+        // Verify thought exists and belongs to user first
+        thoughtsRepository.findByIdAndUserId(thoughtId, userId)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + thoughtId));
+
         return historyRepository.findByThoughtsToPostIdOrderByVersionDesc(thoughtId);
     }
 
@@ -133,7 +137,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse approveAndPost(String id, com.carlev.thoughtstopost.dto.ApproveThoughtRequest request, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() != PostStatus.ENRICHED && thought.getStatus() != PostStatus.FAILED) {
@@ -217,7 +221,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse rejectThought(String id, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         thought.setStatus(PostStatus.REJECTED);
@@ -234,7 +238,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse updateEnrichedContent(String id, ThoughtResponse request, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() == PostStatus.POSTED) {
@@ -275,7 +279,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse reenrichThought(String id, String additionalInstructions, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() == PostStatus.POSTED) {
@@ -291,6 +295,47 @@ public class ThoughtsService {
         sendToAiAgent(savedThought, additionalInstructions);
 
         return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(savedThought));
+    }
+
+    /**
+     * Delete a thought.
+     */
+    @Transactional
+    public void deleteThought(String id, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        // Save history before deleting
+        createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.DELETE, userId);
+
+        thoughtsRepository.delete(thought);
+        log.info("Deleted thought: {}", id);
+    }
+
+    /**
+     * Repost an existing thought by resetting it to PENDING.
+     */
+    @Transactional
+    public ThoughtResponse repostThought(String id, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        // Reset status and enrichment data
+        thought.setStatus(PostStatus.PENDING);
+        thought.setEnrichedContents(new java.util.ArrayList<>());
+        thought.setGeneratedImageUrl(null);
+        thought.setGeneratedImageBase64(null);
+        thought.setErrorMessage(null);
+        thought.setUpdatedBy(userId);
+
+        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
+        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+
+        // Send to Kafka for AI processing
+        sendToAiAgent(savedThought, "Reposting this thought.");
+
+        log.info("Reposted thought: {}", id);
+        return ThoughtResponse.fromEntity(savedThought);
     }
 
     /**
