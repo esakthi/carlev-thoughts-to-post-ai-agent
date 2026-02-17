@@ -4,16 +4,21 @@ import { LandingPageComponent } from './pages/landing-page/landing-page.componen
 import { PendingPostsPageComponent } from './pages/pending-posts-page/pending-posts-page.component';
 import { HistoryPageComponent } from './pages/history-page/history-page.component';
 import { ViewPostPageComponent } from './pages/view-post-page/view-post-page.component';
+import { LoginPageComponent } from './pages/login-page/login-page.component';
+import { RegisterPageComponent } from './pages/register-page/register-page.component';
+import { authGuard } from './services/auth.guard';
 
 export const routes: Routes = [
-    { path: '', component: LandingPageComponent },
+    { path: 'login', component: LoginPageComponent },
+    { path: 'register', component: RegisterPageComponent },
+    { path: '', component: LandingPageComponent, canActivate: [authGuard] },
     {
-        path: 'thoughts', children: [
+        path: 'thoughts', canActivate: [authGuard], children: [
             { path: 'create', component: ThoughtsPageComponent }
         ]
     },
     {
-        path: 'posts', children: [
+        path: 'posts', canActivate: [authGuard], children: [
             { path: 'pending', component: PendingPostsPageComponent },
             { path: 'history', component: HistoryPageComponent },
             { path: 'view/:id', component: ViewPostPageComponent }
@@ -21,10 +26,11 @@ export const routes: Routes = [
     },
     {
         path: 'platforms/:platform',
+        canActivate: [authGuard],
         loadComponent: () => import('./pages/platform-posts-page/platform-posts-page.component').then(m => m.PlatformPostsPageComponent)
     },
     {
-        path: 'admin', children: [
+        path: 'admin', canActivate: [authGuard], children: [
             {
                 path: 'categories',
                 loadComponent: () => import('./pages/admin/categories-page/categories-page.component').then(m => m.CategoriesPageComponent)
@@ -35,5 +41,5 @@ export const routes: Routes = [
             }
         ]
     },
-    { path: '**', redirectTo: '' }
+    { path: '**', redirectTo: 'login' }
 ];

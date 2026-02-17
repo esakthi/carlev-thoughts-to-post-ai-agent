@@ -1,12 +1,15 @@
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { AuthService } from '../../services/auth.service';
+import { Observable } from 'rxjs';
 
 @Component({
     selector: 'app-header',
     standalone: true,
-    imports: [RouterLink, RouterLinkActive],
+    imports: [RouterLink, RouterLinkActive, CommonModule],
     template: `
-    <header class="header">
+    <header class="header" *ngIf="isAuthenticated$ | async">
       <div class="container">
         <div class="header-content">
           <div class="logo" routerLink="/" style="cursor: pointer;">
@@ -32,6 +35,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
                 <a routerLink="/admin/platform-prompts" routerLinkActive="active">Platform Prompts</a>
               </div>
             </div>
+            <a class="nav-item logout-btn" (click)="onLogout()">Logout</a>
           </nav>
         </div>
       </div>
@@ -137,6 +141,24 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         border-radius: 1px;
       }
     }
+
+    .logout-btn {
+      color: #ff4d4d !important;
+
+      &:hover {
+        color: #ff1a1a !important;
+      }
+    }
   `]
 })
-export class HeaderComponent { }
+export class HeaderComponent {
+    isAuthenticated$: Observable<boolean>;
+
+    constructor(private authService: AuthService) {
+        this.isAuthenticated$ = this.authService.isAuthenticated$;
+    }
+
+    onLogout(): void {
+        this.authService.logout();
+    }
+}

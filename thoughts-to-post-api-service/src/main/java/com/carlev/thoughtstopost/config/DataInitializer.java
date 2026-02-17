@@ -3,11 +3,14 @@ package com.carlev.thoughtstopost.config;
 import com.carlev.thoughtstopost.model.PlatformPrompt;
 import com.carlev.thoughtstopost.model.PlatformType;
 import com.carlev.thoughtstopost.model.ThoughtCategory;
+import com.carlev.thoughtstopost.model.UserAccount;
 import com.carlev.thoughtstopost.repository.PlatformPromptRepository;
 import com.carlev.thoughtstopost.repository.ThoughtCategoryRepository;
+import com.carlev.thoughtstopost.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -19,11 +22,14 @@ public class DataInitializer implements CommandLineRunner {
 
     private final ThoughtCategoryRepository categoryRepository;
     private final PlatformPromptRepository platformPromptRepository;
+    private final UserAccountRepository userAccountRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
         seedCategories();
         seedPlatformPrompts();
+        seedDefaultUser();
     }
 
     private void seedCategories() {
@@ -94,6 +100,31 @@ public class DataInitializer implements CommandLineRunner {
                     .promptText(promptText)
                     .build();
             platformPromptRepository.save(prompt);
+        }
+    }
+
+    private void seedDefaultUser() {
+        String email = "sakthi.nem@gmail.com";
+        if (userAccountRepository.findById(email).isEmpty()) {
+            log.info("Seeding default user {}...", email);
+            UserAccount defaultUser = UserAccount.builder()
+                    .userId(email)
+                    .password(passwordEncoder.encode("Password$123"))
+                    .roles(new java.util.HashSet<>(java.util.List.of("ROLE_USER")))
+                    .build();
+            userAccountRepository.save(defaultUser);
+        } else {
+            // Update existing default user if password is not set
+            userAccountRepository.findById(email).ifPresent(user -> {
+                if (user.getPassword() == null) {
+                    log.info("Updating default user {} with password...", email);
+                    user.setPassword(passwordEncoder.encode("Password$123"));
+                    if (user.getRoles() == null || user.getRoles().isEmpty()) {
+                        user.setRoles(new java.util.HashSet<>(java.util.List.of("ROLE_USER")));
+                    }
+                    userAccountRepository.save(user);
+                }
+            });
         }
     }
 }
