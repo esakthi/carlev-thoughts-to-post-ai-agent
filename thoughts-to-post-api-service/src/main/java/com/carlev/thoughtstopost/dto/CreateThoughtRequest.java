@@ -28,4 +28,16 @@ public class CreateThoughtRequest {
     private List<PlatformType> platforms;
 
     private String additionalInstructions;
+
+    private List<PlatformConfig> platformConfigs;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PlatformConfig {
+        private PlatformType platform;
+        private String presetId;
+        private String additionalContext;
+    }
 }

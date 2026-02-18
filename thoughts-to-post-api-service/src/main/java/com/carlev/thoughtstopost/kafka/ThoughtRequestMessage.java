@@ -27,7 +27,18 @@ public class ThoughtRequestMessage {
     private String modelRole;
     private String searchDescription;
     private java.util.Map<PlatformType, String> platformPrompts;
+    private List<PlatformConfiguration> platformConfigurations;
     private Integer version;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime createdAt;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PlatformConfiguration {
+        private PlatformType platform;
+        private String prompt;
+        private String additionalContext;
+    }
 }

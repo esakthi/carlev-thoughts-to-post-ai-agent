@@ -5,6 +5,7 @@ import com.carlev.thoughtstopost.dto.ThoughtResponse;
 import com.carlev.thoughtstopost.kafka.ThoughtRequestMessage;
 import com.carlev.thoughtstopost.kafka.ThoughtResponseMessage;
 import com.carlev.thoughtstopost.kafka.ThoughtsKafkaProducer;
+import com.carlev.thoughtstopost.model.PlatformPrompt;
 import com.carlev.thoughtstopost.model.PlatformType;
 import com.carlev.thoughtstopost.model.PostStatus;
 import com.carlev.thoughtstopost.model.ThoughtCategory;
@@ -21,7 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -50,12 +54,36 @@ public class ThoughtsService {
     public ThoughtResponse createThought(CreateThoughtRequest request, String userId) {
         log.info("Creating new thought for user: {}", userId);
 
+        List<ThoughtsToPost.PlatformSelection> selections = new ArrayList<>();
+        List<PlatformType> selectedPlatforms = new ArrayList<>();
+
+        if (request.getPlatformConfigs() != null && !request.getPlatformConfigs().isEmpty()) {
+            for (CreateThoughtRequest.PlatformConfig config : request.getPlatformConfigs()) {
+                selections.add(ThoughtsToPost.PlatformSelection.builder()
+                        .platform(config.getPlatform())
+                        .presetId(config.getPresetId())
+                        .additionalContext(config.getAdditionalContext())
+                        .build());
+                selectedPlatforms.add(config.getPlatform());
+            }
+        } else if (request.getPlatforms() != null) {
+            // Fallback for backward compatibility if only platforms list is provided
+            for (PlatformType platform : request.getPlatforms()) {
+                selections.add(ThoughtsToPost.PlatformSelection.builder()
+                        .platform(platform)
+                        .build());
+                selectedPlatforms.add(platform);
+            }
+        }
+
         // Create the document
         ThoughtsToPost thought = ThoughtsToPost.builder()
                 .userId(userId)
                 .categoryId(request.getCategoryId())
                 .originalThought(request.getThought())
-                .selectedPlatforms(request.getPlatforms())
+                .additionalInstructions(request.getAdditionalInstructions())
+                .platformSelections(selections)
+                .selectedPlatforms(selectedPlatforms)
                 .status(PostStatus.PENDING)
                 .createdBy(userId)
                 .build();
@@ -343,41 +371,53 @@ public class ThoughtsService {
      */
     @Transactional
     public void handleAgentResponse(ThoughtResponseMessage message) {
-        log.info("Handling AI agent response for request: {}", message.getRequestId());
+        log.info("Handling AI agent response for request: {} with status: {}", message.getRequestId(), message.getStatus());
 
         ThoughtsToPost thought = thoughtsRepository.findById(message.getRequestId())
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + message.getRequestId()));
 
-        if ("completed".equalsIgnoreCase(message.getStatus())) {
-            // Update with enriched content
-            if (message.getEnrichedContents() != null) {
-                List<ThoughtsToPost.EnrichedContent> enrichedContents = message.getEnrichedContents().stream()
-                        .map(ec -> ThoughtsToPost.EnrichedContent.builder()
-                                .platform(ec.getPlatform())
-                                .title(ec.getTitle())
-                                .body(ec.getBody())
-                                .hashtags(ec.getHashtags())
-                                .callToAction(ec.getCallToAction())
-                                .characterCount(ec.getCharacterCount())
-                                .build())
-                        .collect(Collectors.toList());
-                thought.setEnrichedContents(enrichedContents);
-            }
+        // Update enriched contents incrementally
+        if (message.getEnrichedContents() != null) {
+            for (ThoughtResponseMessage.EnrichedContentMessage ec : message.getEnrichedContents()) {
+                // Remove existing content for this platform if any
+                thought.getEnrichedContents().removeIf(existing -> existing.getPlatform() == ec.getPlatform());
 
-            // Update with generated image
-            if (message.getGeneratedImage() != null) {
-                thought.setGeneratedImageBase64(message.getGeneratedImage().getImageBase64());
-                // TODO: Upload to cloud storage and set URL
-                thought.setGeneratedImageUrl("data:image/" + message.getGeneratedImage().getImageFormat()
-                        + ";base64," + message.getGeneratedImage().getImageBase64());
+                // Add new content
+                thought.getEnrichedContents().add(ThoughtsToPost.EnrichedContent.builder()
+                        .platform(ec.getPlatform())
+                        .title(ec.getTitle())
+                        .body(ec.getBody())
+                        .hashtags(ec.getHashtags())
+                        .callToAction(ec.getCallToAction())
+                        .characterCount(ec.getCharacterCount())
+                        .status(PostStatus.PENDING) // Ready for approval
+                        .build());
             }
+        }
 
+        // Update with generated image if provided
+        if (message.getGeneratedImage() != null) {
+            thought.setGeneratedImageBase64(message.getGeneratedImage().getImageBase64());
+            thought.setGeneratedImageUrl("data:image/" + message.getGeneratedImage().getImageFormat()
+                    + ";base64," + message.getGeneratedImage().getImageBase64());
+        }
+
+        // Update overall status
+        String incomingStatus = message.getStatus().toLowerCase();
+        if ("completed".equals(incomingStatus)) {
             thought.setStatus(PostStatus.ENRICHED);
-            log.info("Thought enriched successfully: {}", thought.getId());
+            log.info("Thought fully enriched: {}", thought.getId());
+        } else if ("in_progress".equals(incomingStatus)) {
+            thought.setStatus(PostStatus.PROCESSING);
+            log.info("Thought enrichment in progress: {}", thought.getId());
+        } else if ("partially_completed".equals(incomingStatus)) {
+            thought.setStatus(PostStatus.PARTIALLY_COMPLETED);
+            thought.setErrorMessage(message.getErrorMessage());
+            log.info("Thought enrichment partially completed: {}", thought.getId());
         } else {
             thought.setStatus(PostStatus.FAILED);
             thought.setErrorMessage(message.getErrorMessage());
-            log.error("AI agent processing failed: {}", message.getErrorMessage());
+            log.error("AI agent processing failed for {}: {}", thought.getId(), message.getErrorMessage());
         }
 
         thought = thoughtsRepository.save(thought);
@@ -400,22 +440,58 @@ public class ThoughtsService {
             category = categoryRepository.findByThoughtCategory("Default").orElse(null);
         }
 
-        // Fetch platform prompts
-        java.util.Map<PlatformType, String> platformPrompts = new java.util.HashMap<>();
-        for (PlatformType platform : thought.getSelectedPlatforms()) {
-            platformPromptRepository.findByPlatform(platform)
-                    .ifPresent(p -> platformPrompts.put(platform, p.getPromptText()));
+        // Fetch platform configurations
+        List<ThoughtRequestMessage.PlatformConfiguration> configurations = new ArrayList<>();
+        Map<PlatformType, String> legacyPlatformPrompts = new HashMap<>();
+
+        for (ThoughtsToPost.PlatformSelection selection : thought.getPlatformSelections()) {
+            // Check if this platform is already completed (for retries)
+            boolean alreadyCompleted = thought.getEnrichedContents().stream()
+                    .anyMatch(ec -> ec.getPlatform() == selection.getPlatform());
+
+            if (alreadyCompleted && thought.getStatus() == PostStatus.PARTIALLY_COMPLETED) {
+                continue; // Skip already completed platforms during retry
+            }
+
+            String promptText = null;
+            if (selection.getPresetId() != null) {
+                promptText = platformPromptRepository.findById(selection.getPresetId())
+                        .map(PlatformPrompt::getPromptText)
+                        .orElse(null);
+            }
+
+            if (promptText == null) {
+                // Try to find the first one for this platform
+                promptText = platformPromptRepository.findAllByPlatform(selection.getPlatform()).stream()
+                        .findFirst()
+                        .map(PlatformPrompt::getPromptText)
+                        .orElse("");
+            }
+
+            configurations.add(ThoughtRequestMessage.PlatformConfiguration.builder()
+                    .platform(selection.getPlatform())
+                    .prompt(promptText)
+                    .additionalContext(selection.getAdditionalContext())
+                    .build());
+
+            legacyPlatformPrompts.put(selection.getPlatform(), promptText);
+        }
+
+        if (configurations.isEmpty() && thought.getStatus() == PostStatus.PARTIALLY_COMPLETED) {
+            log.info("All platforms already enriched for thought {}", thought.getId());
+            return;
         }
 
         ThoughtRequestMessage message = ThoughtRequestMessage.builder()
                 .requestId(thought.getId())
                 .userId(thought.getUserId())
                 .originalThought(thought.getOriginalThought())
-                .platforms(thought.getSelectedPlatforms())
+                .platforms(configurations.stream().map(ThoughtRequestMessage.PlatformConfiguration::getPlatform).collect(Collectors.toList()))
                 .additionalInstructions(additionalInstructions)
                 .modelRole(category != null ? category.getModelRole() : null)
                 .searchDescription(category != null ? category.getSearchDescription() : null)
-                .platformPrompts(platformPrompts)
+                .platformPrompts(legacyPlatformPrompts)
+                .platformConfigurations(configurations)
                 .version(thought.getVersion() != null ? thought.getVersion().intValue() : 1)
                 .createdAt(LocalDateTime.now())
                 .build();

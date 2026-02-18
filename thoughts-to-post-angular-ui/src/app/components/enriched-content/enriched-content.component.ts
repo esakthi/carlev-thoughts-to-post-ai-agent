@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output, signal, inject } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
-import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../models/thought.models';
+import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest, PlatformType } from '../../models/thought.models';
 
 @Component({
     selector: 'app-enriched-content',
@@ -110,6 +110,21 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
                   </div>
                 }
               }
+            </div>
+          }
+
+          <!-- Missing Platforms -->
+          @if (getMissingPlatforms().length > 0) {
+            <div class="missing-platforms card-glass">
+              <h4 class="section-title">Missing Platforms</h4>
+              <div class="platforms-list">
+                @for (platform of getMissingPlatforms(); track platform) {
+                  <div class="platform-missing">
+                    <span class="platform-badge gray">{{ PLATFORM_CONFIG[platform].label }}</span>
+                    <span class="text-muted">Not yet enriched or failed.</span>
+                  </div>
+                }
+              </div>
             </div>
           }
 
@@ -565,6 +580,31 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
       border-color: rgba(244, 92, 67, 0.3);
     }
 
+    .missing-platforms {
+      margin-top: var(--spacing-lg);
+      padding: var(--spacing-lg);
+
+      .platforms-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        margin-top: var(--spacing-sm);
+      }
+
+      .platform-missing {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
+        font-size: 0.9rem;
+      }
+
+      .platform-badge.gray {
+        background: var(--bg-glass);
+        color: var(--text-muted);
+        border: 1px solid var(--border-color);
+      }
+    }
+
     .image-actions {
       display: flex;
       gap: var(--spacing-md);
@@ -665,12 +705,20 @@ export class EnrichedContentComponent {
         return this.thought.status !== 'POSTED' && this.thought.status !== 'POSTING' && this.currentStep() === 1;
     }
 
+    getMissingPlatforms(): PlatformType[] {
+        if (!this.thought.selectedPlatforms) return [];
+        const enrichedPlatforms = this.thought.enrichedContents?.map(ec => ec.platform) || [];
+        return this.thought.selectedPlatforms.filter(p => !enrichedPlatforms.includes(p));
+    }
+
     canResubmit(): boolean {
-        return this.thought.status === 'ENRICHED' || this.thought.status === 'FAILED' || this.thought.status === 'REJECTED';
+        const statuses = ['ENRICHED', 'FAILED', 'REJECTED', 'PARTIALLY_COMPLETED'];
+        return statuses.includes(this.thought.status);
     }
 
     canRepost(): boolean {
-        return this.thought.status === 'POSTED' || this.thought.status === 'REJECTED' || this.thought.status === 'FAILED';
+        const statuses = ['POSTED', 'REJECTED', 'FAILED', 'PARTIALLY_COMPLETED'];
+        return statuses.includes(this.thought.status);
     }
 
     getStatusLabel(status: string): string {
@@ -682,7 +730,8 @@ export class EnrichedContentComponent {
             'POSTING': '📤 Posting...',
             'POSTED': '🎉 Posted',
             'FAILED': '❌ Failed',
-            'REJECTED': '✕ Rejected'
+            'REJECTED': '✕ Rejected',
+            'PARTIALLY_COMPLETED': '⚠️ Partially Completed'
         };
         return labels[status] || status;
     }
