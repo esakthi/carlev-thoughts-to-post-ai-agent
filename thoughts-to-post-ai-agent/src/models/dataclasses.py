@@ -37,6 +37,16 @@ class PlatformConfiguration(BaseModel):
     class Config:
         populate_by_name = True
 
+    @field_validator("platform", mode="before")
+    @classmethod
+    def normalize_platform(cls, value):
+        """Normalize platform name to lowercase."""
+        if value is None:
+            return value
+        if isinstance(value, str):
+            return value.lower()
+        return value
+
 
 class ThoughtRequest(BaseModel):
     """Input request from Kafka containing the thought to enrich.
