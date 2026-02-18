@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -26,7 +27,8 @@ public class OAuthController {
      * Get LinkedIn authorization status for a user.
      */
     @GetMapping("/linkedin/status")
-    public ResponseEntity<Map<String, Boolean>> getLinkedInStatus(@RequestHeader("X-User-Id") String userId) {
+    public ResponseEntity<Map<String, Boolean>> getLinkedInStatus(Authentication authentication) {
+        String userId = authentication.getName();
         boolean authorized = linkedInService.isUserAuthorized(userId);
         return ResponseEntity.ok(Map.of("authorized", authorized));
     }
@@ -36,7 +38,8 @@ public class OAuthController {
      * Returns the authorization URL for the user to visit.
      */
     @GetMapping("/linkedin/authorize")
-    public ResponseEntity<Map<String, String>> initiateLinkedInAuth(@RequestHeader("X-User-Id") String userId) {
+    public ResponseEntity<Map<String, String>> initiateLinkedInAuth(Authentication authentication) {
+        String userId = authentication.getName();
         // Use userId as state to identify the user on callback
         // In production, this should be a secure hash or session-linked value
         String state = userId;

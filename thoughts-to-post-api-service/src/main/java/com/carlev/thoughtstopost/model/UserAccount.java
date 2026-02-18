@@ -21,7 +21,12 @@ import java.util.Map;
 @AllArgsConstructor
 public class UserAccount {
     @Id
-    private String userId;
+    private String userId; // This is the email address
+
+    private String password;
+
+    @Builder.Default
+    private java.util.Set<String> roles = new java.util.HashSet<>(java.util.List.of("ROLE_USER"));
 
     @Builder.Default
     private Map<PlatformType, SocialToken> tokens = new HashMap<>();

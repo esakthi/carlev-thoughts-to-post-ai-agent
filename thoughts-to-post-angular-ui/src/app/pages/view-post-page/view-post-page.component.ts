@@ -30,6 +30,8 @@ import { ThoughtResponse, ApproveThoughtRequest } from '../../models/thought.mod
             (reject)="onReject()"
             (updateContent)="onUpdate($event)"
             (reenrich)="onReenrich($event)"
+            (delete)="onDelete()"
+            (repost)="onRepost()"
           />
         </div>
       } @else {
@@ -190,6 +192,27 @@ export class ViewPostPageComponent implements OnInit {
                 this.startPolling(updated.id);
             },
             error: (err) => this.error.set('Re-enrichment failed: ' + err.message)
+        });
+    }
+
+    onDelete() {
+        const t = this.thought();
+        if (!t) return;
+        this.thoughtsService.deleteThought(t.id).subscribe({
+            next: () => this.router.navigate(['/thoughts']),
+            error: (err) => this.error.set('Delete failed: ' + err.message)
+        });
+    }
+
+    onRepost() {
+        const t = this.thought();
+        if (!t) return;
+        this.thoughtsService.repostThought(t.id).subscribe({
+            next: (updated) => {
+                this.thought.set(updated);
+                this.startPolling(updated.id);
+            },
+            error: (err) => this.error.set('Repost failed: ' + err.message)
         });
     }
 

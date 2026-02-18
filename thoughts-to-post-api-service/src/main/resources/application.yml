@@ -51,6 +51,11 @@ app:
     client-id: ${INSTAGRAM_CLIENT_ID:}
     client-secret: ${INSTAGRAM_CLIENT_SECRET:}
 
+  # JWT Configuration
+  jwt:
+    secret: ${JWT_SECRET:QE5jUmZValhuMnI1dTl4L0E/RCtHYitLYjJQZFNnVmthWnA=} # 256-bit key (Base64)
+    expiration: 86400000 # 24 hours in milliseconds
+
 # Actuator endpoints
 management:
   endpoints:

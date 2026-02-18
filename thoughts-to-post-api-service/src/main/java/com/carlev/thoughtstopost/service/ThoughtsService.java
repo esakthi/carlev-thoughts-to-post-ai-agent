@@ -5,9 +5,13 @@ import com.carlev.thoughtstopost.dto.ThoughtResponse;
 import com.carlev.thoughtstopost.kafka.ThoughtRequestMessage;
 import com.carlev.thoughtstopost.kafka.ThoughtResponseMessage;
 import com.carlev.thoughtstopost.kafka.ThoughtsKafkaProducer;
+import com.carlev.thoughtstopost.model.PlatformType;
 import com.carlev.thoughtstopost.model.PostStatus;
+import com.carlev.thoughtstopost.model.ThoughtCategory;
 import com.carlev.thoughtstopost.model.ThoughtsToPost;
 import com.carlev.thoughtstopost.model.ThoughtsToPostHistory;
+import com.carlev.thoughtstopost.repository.PlatformPromptRepository;
+import com.carlev.thoughtstopost.repository.ThoughtCategoryRepository;
 import com.carlev.thoughtstopost.repository.ThoughtsToPostHistoryRepository;
 import com.carlev.thoughtstopost.repository.ThoughtsToPostRepository;
 import com.carlev.thoughtstopost.social.SocialMediaService;
@@ -32,8 +36,8 @@ public class ThoughtsService {
     private final ThoughtsToPostHistoryRepository historyRepository;
     private final ThoughtsKafkaProducer kafkaProducer;
     private final SocialMediaService socialMediaService;
-    private final com.carlev.thoughtstopost.repository.ThoughtCategoryRepository categoryRepository;
-    private final com.carlev.thoughtstopost.repository.PlatformPromptRepository platformPromptRepository;
+    private final ThoughtCategoryRepository categoryRepository;
+    private final PlatformPromptRepository platformPromptRepository;
 
     /**
      * Create a new thought post and send it to the AI agent for enrichment.
@@ -70,10 +74,10 @@ public class ThoughtsService {
     }
 
     /**
-     * Get a thought by ID.
+     * Get a thought by ID for a specific user.
      */
-    public ThoughtResponse getThought(String id) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+    public ThoughtResponse getThought(String id, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
         // print this whole object as json in the logs
         log.info("Thought shared by User to AI for enriching has been Retrieved from MongoDB, thought Details: {}",
@@ -93,7 +97,7 @@ public class ThoughtsService {
     /**
      * Get thoughts for a user filtered by platform.
      */
-    public List<ThoughtResponse> getUserThoughtsByPlatform(String userId, com.carlev.thoughtstopost.model.PlatformType platform) {
+    public List<ThoughtResponse> getUserThoughtsByPlatform(String userId, PlatformType platform) {
         return thoughtsRepository.findByUserIdAndSelectedPlatformsContains(userId, platform).stream()
                 .map(ThoughtResponse::fromEntity)
                 .collect(Collectors.toList());
@@ -118,9 +122,13 @@ public class ThoughtsService {
     }
 
     /**
-     * Get history for a thought.
+     * Get history for a thought for a specific user.
      */
-    public List<ThoughtsToPostHistory> getThoughtHistory(String thoughtId) {
+    public List<ThoughtsToPostHistory> getThoughtHistory(String thoughtId, String userId) {
+        // Verify thought exists and belongs to user first
+        thoughtsRepository.findByIdAndUserId(thoughtId, userId)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + thoughtId));
+
         return historyRepository.findByThoughtsToPostIdOrderByVersionDesc(thoughtId);
     }
 
@@ -129,7 +137,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse approveAndPost(String id, com.carlev.thoughtstopost.dto.ApproveThoughtRequest request, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() != PostStatus.ENRICHED && thought.getStatus() != PostStatus.FAILED) {
@@ -213,7 +221,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse rejectThought(String id, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         thought.setStatus(PostStatus.REJECTED);
@@ -230,7 +238,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse updateEnrichedContent(String id, ThoughtResponse request, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() == PostStatus.POSTED) {
@@ -271,7 +279,7 @@ public class ThoughtsService {
      */
     @Transactional
     public ThoughtResponse reenrichThought(String id, String additionalInstructions, String userId) {
-        ThoughtsToPost thought = thoughtsRepository.findById(id)
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() == PostStatus.POSTED) {
@@ -287,6 +295,47 @@ public class ThoughtsService {
         sendToAiAgent(savedThought, additionalInstructions);
 
         return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(savedThought));
+    }
+
+    /**
+     * Delete a thought.
+     */
+    @Transactional
+    public void deleteThought(String id, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        // Save history before deleting
+        createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.DELETE, userId);
+
+        thoughtsRepository.delete(thought);
+        log.info("Deleted thought: {}", id);
+    }
+
+    /**
+     * Repost an existing thought by resetting it to PENDING.
+     */
+    @Transactional
+    public ThoughtResponse repostThought(String id, String userId) {
+        ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
+
+        // Reset status and enrichment data
+        thought.setStatus(PostStatus.PENDING);
+        thought.setEnrichedContents(new java.util.ArrayList<>());
+        thought.setGeneratedImageUrl(null);
+        thought.setGeneratedImageBase64(null);
+        thought.setErrorMessage(null);
+        thought.setUpdatedBy(userId);
+
+        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
+        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+
+        // Send to Kafka for AI processing
+        sendToAiAgent(savedThought, "Reposting this thought.");
+
+        log.info("Reposted thought: {}", id);
+        return ThoughtResponse.fromEntity(savedThought);
     }
 
     /**
@@ -341,7 +390,7 @@ public class ThoughtsService {
     private void sendToAiAgent(ThoughtsToPost thought, String additionalInstructions) {
         // Fetch category details
         String categoryId = thought.getCategoryId();
-        com.carlev.thoughtstopost.model.ThoughtCategory category = null;
+        ThoughtCategory category = null;
         if (categoryId != null) {
             category = categoryRepository.findById(categoryId).orElse(null);
         }
@@ -352,8 +401,8 @@ public class ThoughtsService {
         }
 
         // Fetch platform prompts
-        java.util.Map<com.carlev.thoughtstopost.model.PlatformType, String> platformPrompts = new java.util.HashMap<>();
-        for (com.carlev.thoughtstopost.model.PlatformType platform : thought.getSelectedPlatforms()) {
+        java.util.Map<PlatformType, String> platformPrompts = new java.util.HashMap<>();
+        for (PlatformType platform : thought.getSelectedPlatforms()) {
             platformPromptRepository.findByPlatform(platform)
                     .ifPresent(p -> platformPrompts.put(platform, p.getPromptText()));
         }

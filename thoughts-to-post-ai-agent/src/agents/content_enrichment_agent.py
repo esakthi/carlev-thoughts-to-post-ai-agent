@@ -97,18 +97,30 @@ class ContentEnrichmentAgent:
         self, platform: PlatformType, request: ThoughtRequest
     ) -> ChatPromptTemplate:
         """Create a prompt template for the given platform using dynamic prompts from request."""
+        logger.info(f"Constructing prompt template for platform: {platform.value}")
+
         # Use dynamic system prompt from request, fallback to hardcoded if not provided
-        system_prompt = request.model_role or BASE_SYSTEM_PROMPT
+        if request.model_role:
+            logger.debug(f"Using dynamic model role from request")
+            system_prompt = request.model_role
+        else:
+            logger.debug(f"Using default BASE_SYSTEM_PROMPT")
+            system_prompt = BASE_SYSTEM_PROMPT
 
         # Include category description if available
         if request.search_description:
+            logger.debug(f"Adding category context: {request.search_description[:50]}...")
             system_prompt += f"\n\nCategory Context: {request.search_description}"
 
         # Use platform-specific prompt from request, fallback to hardcoded
         platform_prompt = request.platform_prompts.get(platform)
-        if not platform_prompt:
+        if platform_prompt:
+            logger.debug(f"Using dynamic platform prompt for {platform.value}")
+        else:
+            logger.debug(f"Using hardcoded default platform prompt for {platform.value}")
             platform_prompt = PLATFORM_PROMPTS.get(platform, PLATFORM_PROMPTS[PlatformType.LINKEDIN])
 
+        logger.info(f"Final system prompt length: {len(system_prompt) + len(platform_prompt)} characters")
         return ChatPromptTemplate.from_messages([
             ("system", system_prompt + "\n\n" + platform_prompt),
             MessagesPlaceholder(variable_name="history"),
@@ -155,14 +167,18 @@ class ContentEnrichmentAgent:
         prompt = self._get_prompt_template(platform, request)
 
         # Build the input message
+        logger.debug(f"Building input text for {platform.value}")
         input_text = f"Original thought/topic: {request.original_thought}"
         if request.additional_instructions:
+            logger.debug(f"Adding additional instructions: {request.additional_instructions}")
             input_text += f"\n\nAdditional instructions: {request.additional_instructions}"
         if additional_context:
+            logger.debug(f"Adding additional context: {additional_context}")
             input_text += f"\n\nContext: {additional_context}"
 
         # Get conversation history for refinements
         history = self.get_history(request.request_id)
+        logger.info(f"Retrieved {len(history)} messages from history for request {request.request_id}")
 
         # Create and run the chain
         chain = prompt | llm | StrOutputParser()
@@ -225,16 +241,20 @@ class ContentEnrichmentAgent:
         Returns:
             List of EnrichedContent for each platform
         """
+        logger.info(f"Starting enrichment for {len(request.platforms)} platforms")
         results = []
 
         for platform in request.platforms:
+            logger.info(f"-> Processing platform: {platform.value}")
             try:
                 enriched = self.enrich_for_platform(request, platform)
                 results.append(enriched)
+                logger.info(f"Successfully enriched for {platform.value}")
             except Exception as e:
                 logger.error(f"Failed to enrich for {platform}: {e}")
                 # Continue with other platforms even if one fails
 
+        logger.info(f"Completed enrichment. Success: {len(results)}/{len(request.platforms)}")
         return results
 
     def refine_content(
@@ -258,21 +278,29 @@ class ContentEnrichmentAgent:
         history = self.get_history(request.request_id)
 
         if not history:
-            raise ValueError(f"No history found for request {request.request_id}")
+            # If no history, we can't refine, but we can try to re-enrich as if it's the first time
+            # Or just log it and use empty history
+            logger.warning(f"No history found for request {request.request_id}. Initializing with empty history.")
+            history = []
 
         input_text = f"Please refine the content with the following feedback: {refinement_instruction}"
+        logger.debug(f"Refinement input: {input_text}")
 
         chain = prompt | llm | StrOutputParser()
 
-        logger.info(f"Refining content for request {request_id}")
+        logger.info(f"Invoking LLM for refinement of request {request.request_id} ({platform.value})")
 
         refined_text = chain.invoke({
             "history": history,
             "input": input_text,
         })
 
-        self._add_to_history(request_id, input_text, refined_text)
+        logger.info(f"Refinement complete. New content length: {len(refined_text)}")
+        self._add_to_history(request.request_id, input_text, refined_text)
+
+        logger.debug("Extracting hashtags from refined content")
         hashtags = self._extract_hashtags(refined_text)
+        logger.info(f"Extracted {len(hashtags)} hashtags")
 
         return EnrichedContent(
             platform=platform,

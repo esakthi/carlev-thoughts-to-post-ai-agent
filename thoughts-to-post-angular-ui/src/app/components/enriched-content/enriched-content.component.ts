@@ -1,6 +1,7 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../models/thought.models';
 
 @Component({
@@ -17,12 +18,19 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
           </span>
           <span class="version text-muted">v{{ thought.version }}</span>
         </div>
-        @if (isProcessing) {
-          <div class="processing-indicator">
-            <span class="spinner"></span>
-            <span class="text-secondary">AI is working...</span>
-          </div>
-        }
+        <div class="status-actions">
+          @if (isProcessing) {
+            <div class="processing-indicator">
+              <span class="spinner"></span>
+              <span class="text-secondary">AI is working...</span>
+            </div>
+          } @else {
+            @if (canRepost()) {
+              <button class="btn btn-primary btn-sm" (click)="repost.emit()">🔄 Repost</button>
+            }
+            <button class="btn btn-danger btn-sm" (click)="onDelete()">🗑️ Delete</button>
+          }
+        </div>
       </div>
 
       @if (thought.status === 'ENRICHED') {
@@ -142,9 +150,17 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
           <!-- Generated Image -->
           @if (thought.generatedImageUrl) {
             <div class="generated-image card">
-              <h4 class="section-title">Generated Image</h4>
+              <div class="section-header">
+                <h4 class="section-title">Generated Image</h4>
+                <div class="image-actions">
+                  <button class="btn-text" (click)="showImageModal.set(true)">View Image</button>
+                  <a [href]="sanitizeUrl(thought.generatedImageUrl)" download="post-image.png" class="btn-text">
+                    Download Image
+                  </a>
+                </div>
+              </div>
               <div class="image-container">
-                <img [src]="thought.generatedImageUrl" alt="Generated image for your post" />
+                <img [src]="sanitizeUrl(thought.generatedImageUrl)" alt="Generated image for your post" />
               </div>
             </div>
           } @else {
@@ -205,6 +221,27 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
           <span class="error-icon">⚠️</span>
           <h3>Something Went Wrong</h3>
           <p class="text-secondary">{{ thought.errorMessage }}</p>
+        </div>
+      }
+
+      <!-- Image Modal -->
+      @if (showImageModal() && thought.generatedImageUrl) {
+        <div class="modal-backdrop" (click)="showImageModal.set(false)">
+          <div class="modal-content image-modal" (click)="$event.stopPropagation()">
+            <div class="modal-header">
+              <h3>Preview Image</h3>
+              <button class="close-btn" (click)="showImageModal.set(false)">×</button>
+            </div>
+            <div class="modal-body centered">
+              <img [src]="sanitizeUrl(thought.generatedImageUrl)" class="full-preview" alt="Full image preview" />
+            </div>
+            <div class="modal-footer">
+              <a [href]="sanitizeUrl(thought.generatedImageUrl)" download="post-image.png" class="btn btn-primary">
+                Download Image
+              </a>
+              <button class="btn btn-secondary" (click)="showImageModal.set(false)">Close</button>
+            </div>
+          </div>
         </div>
       }
     </div>
@@ -527,18 +564,46 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest } from '../../m
       background: linear-gradient(135deg, rgba(235, 51, 73, 0.1) 0%, rgba(244, 92, 67, 0.1) 100%);
       border-color: rgba(244, 92, 67, 0.3);
     }
+
+    .image-actions {
+      display: flex;
+      gap: var(--spacing-md);
+    }
+
+    .image-modal {
+      max-width: 90vw;
+      width: auto;
+    }
+
+    .centered {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .full-preview {
+      max-width: 100%;
+      max-height: 70vh;
+      border-radius: var(--radius-md);
+      object-fit: contain;
+    }
   `]
 })
 export class EnrichedContentComponent {
+    private readonly sanitizer = inject(DomSanitizer);
+
     @Input({ required: true }) thought!: ThoughtResponse;
     @Input() isProcessing = false;
     @Output() approve = new EventEmitter<ApproveThoughtRequest>();
     @Output() reject = new EventEmitter<void>();
+    @Output() delete = new EventEmitter<void>();
+    @Output() repost = new EventEmitter<void>();
     @Output() updateContent = new EventEmitter<ThoughtResponse>();
     @Output() reenrich = new EventEmitter<string>();
 
     currentStep = signal(1);
     isEditing = signal(false);
+    showImageModal = signal(false);
     editableEnrichedContents: ThoughtResponse['enrichedContents'] = [];
 
     // Form state
@@ -583,12 +648,29 @@ export class EnrichedContentComponent {
         this.reenrich.emit(this.textContentComments);
     }
 
+    onDelete() {
+        if (confirm('Are you sure you want to delete this thought? This action cannot be undone.')) {
+            this.delete.emit();
+        }
+    }
+
+    sanitizeUrl(url: string): SafeUrl {
+        if (url && url.startsWith('data:')) {
+            return this.sanitizer.bypassSecurityTrustUrl(url);
+        }
+        return url;
+    }
+
     canEdit(): boolean {
         return this.thought.status !== 'POSTED' && this.thought.status !== 'POSTING' && this.currentStep() === 1;
     }
 
     canResubmit(): boolean {
         return this.thought.status === 'ENRICHED' || this.thought.status === 'FAILED' || this.thought.status === 'REJECTED';
+    }
+
+    canRepost(): boolean {
+        return this.thought.status === 'POSTED' || this.thought.status === 'REJECTED' || this.thought.status === 'FAILED';
     }
 
     getStatusLabel(status: string): string {

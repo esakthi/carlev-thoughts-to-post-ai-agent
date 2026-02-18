@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository for ThoughtsToPost documents.
@@ -17,6 +18,16 @@ public interface ThoughtsToPostRepository extends MongoRepository<ThoughtsToPost
      * Find all thoughts by user ID.
      */
     List<ThoughtsToPost> findByUserId(String userId);
+
+    /**
+     * Find a thought by ID and user ID.
+     */
+    Optional<ThoughtsToPost> findByIdAndUserId(String id, String userId);
+
+    /**
+     * Delete a thought by ID and user ID.
+     */
+    void deleteByIdAndUserId(String id, String userId);
 
     /**
      * Find all thoughts by user ID and status.

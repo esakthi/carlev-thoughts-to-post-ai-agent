@@ -118,6 +118,24 @@ class ThoughtRequest(BaseModel):
 
         return normalized
 
+    @field_validator("platform_prompts", mode="before")
+    @classmethod
+    def normalize_platform_prompts(cls, value):
+        """Normalize platform keys in prompts dictionary.
+        
+        Converts keys like 'LINKEDIN' to 'linkedin' to match PlatformType enum.
+        """
+        if not isinstance(value, dict):
+            return value
+            
+        normalized = {}
+        for k, v in value.items():
+            if isinstance(k, str):
+                normalized[k.lower()] = v
+            else:
+                normalized[k] = v
+        return normalized
+
     @field_validator("created_at", mode="before")
     @classmethod
     def parse_created_at(cls, value):

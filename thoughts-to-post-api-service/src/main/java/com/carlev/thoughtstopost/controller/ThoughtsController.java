@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,14 +31,15 @@ public class ThoughtsController {
     /**
      * Create a new thought post.
      * 
-     * @param request The create request with thought and platforms
-     * @param userId  User ID from header (TODO: Get from JWT/session)
+     * @param request        The create request with thought and platforms
+     * @param authentication Authentication object
      * @return Created thought response
      */
     @PostMapping
     public ResponseEntity<ThoughtResponse> createThought(
             @Valid @RequestBody CreateThoughtRequest request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+            Authentication authentication) {
+        String userId = authentication.getName();
         log.info("Creating thought for user: {}", userId);
         ThoughtResponse response = thoughtsService.createThought(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -46,23 +48,27 @@ public class ThoughtsController {
     /**
      * Get a thought by ID.
      * 
-     * @param id The thought ID
+     * @param id             The thought ID
+     * @param authentication Authentication object
      * @return Thought response
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ThoughtResponse> getThought(@PathVariable String id) {
-        log.info("Getting thought: {}", id);
-        ThoughtResponse response = thoughtsService.getThought(id);
+    public ResponseEntity<ThoughtResponse> getThought(
+            @PathVariable String id,
+            Authentication authentication) {
+        String userId = authentication.getName();
+        log.info("Getting thought: {} for user: {}", id, userId);
+        ThoughtResponse response = thoughtsService.getThought(id, userId);
         return ResponseEntity.ok(response);
     }
 
     /**
      * Get all thoughts for a user, optionally filtered by status or platform.
      * 
-     * @param status    Optional status to filter by
-     * @param notStatus Optional status to exclude
-     * @param platform  Optional platform to filter by
-     * @param userId    User ID from header
+     * @param status         Optional status to filter by
+     * @param notStatus      Optional status to exclude
+     * @param platform       Optional platform to filter by
+     * @param authentication Authentication object
      * @return List of thought responses
      */
     @GetMapping
@@ -70,7 +76,8 @@ public class ThoughtsController {
             @RequestParam(required = false) PostStatus status,
             @RequestParam(required = false) PostStatus notStatus,
             @RequestParam(required = false) com.carlev.thoughtstopost.model.PlatformType platform,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+            Authentication authentication) {
+        String userId = authentication.getName();
         log.info("Getting thoughts for user: {} with filter status: {}, notStatus: {}, platform: {}",
                 userId, status, notStatus, platform);
         List<ThoughtResponse> responses;
@@ -89,29 +96,34 @@ public class ThoughtsController {
     /**
      * Get history for a thought.
      * 
-     * @param id The thought ID
+     * @param id             The thought ID
+     * @param authentication Authentication object
      * @return List of history entries
      */
     @GetMapping("/{id}/history")
-    public ResponseEntity<List<ThoughtsToPostHistory>> getThoughtHistory(@PathVariable String id) {
-        log.info("Getting history for thought: {}", id);
-        List<ThoughtsToPostHistory> history = thoughtsService.getThoughtHistory(id);
+    public ResponseEntity<List<ThoughtsToPostHistory>> getThoughtHistory(
+            @PathVariable String id,
+            Authentication authentication) {
+        String userId = authentication.getName();
+        log.info("Getting history for thought: {} for user: {}", id, userId);
+        List<ThoughtsToPostHistory> history = thoughtsService.getThoughtHistory(id, userId);
         return ResponseEntity.ok(history);
     }
 
     /**
      * Approve a thought and post to social media.
      * 
-     * @param id      The thought ID
-     * @param request The approval request with comments and choices
-     * @param userId  User ID from header
+     * @param id             The thought ID
+     * @param request        The approval request with comments and choices
+     * @param authentication Authentication object
      * @return Updated thought response
      */
     @PostMapping("/{id}/approve")
     public ResponseEntity<ThoughtResponse> approveAndPost(
             @PathVariable String id,
             @RequestBody ApproveThoughtRequest request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+            Authentication authentication) {
+        String userId = authentication.getName();
         log.info("Approving and posting thought: {} by user: {}", id, userId);
         ThoughtResponse response = thoughtsService.approveAndPost(id, request, userId);
         return ResponseEntity.ok(response);
@@ -120,14 +132,15 @@ public class ThoughtsController {
     /**
      * Reject a thought.
      * 
-     * @param id     The thought ID
-     * @param userId User ID from header
+     * @param id             The thought ID
+     * @param authentication Authentication object
      * @return Updated thought response
      */
     @PostMapping("/{id}/reject")
     public ResponseEntity<ThoughtResponse> rejectThought(
             @PathVariable String id,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+            Authentication authentication) {
+        String userId = authentication.getName();
         log.info("Rejecting thought: {} by user: {}", id, userId);
         ThoughtResponse response = thoughtsService.rejectThought(id, userId);
         return ResponseEntity.ok(response);
@@ -136,16 +149,17 @@ public class ThoughtsController {
     /**
      * Update enriched content of a thought.
      *
-     * @param id      The thought ID
-     * @param request The thought response DTO with updated content
-     * @param userId  User ID from header
+     * @param id             The thought ID
+     * @param request        The thought response DTO with updated content
+     * @param authentication Authentication object
      * @return Updated thought response
      */
     @PutMapping("/{id}")
     public ResponseEntity<ThoughtResponse> updateThought(
             @PathVariable String id,
             @RequestBody ThoughtResponse request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+            Authentication authentication) {
+        String userId = authentication.getName();
         log.info("Updating thought: {} by user: {}", id, userId);
         ThoughtResponse response = thoughtsService.updateEnrichedContent(id, request, userId);
         return ResponseEntity.ok(response);
@@ -154,19 +168,54 @@ public class ThoughtsController {
     /**
      * Resubmit a thought for re-enrichment.
      *
-     * @param id      The thought ID
-     * @param request Map containing additionalInstructions
-     * @param userId  User ID from header
+     * @param id             The thought ID
+     * @param request        Map containing additionalInstructions
+     * @param authentication Authentication object
      * @return Updated thought response
      */
     @PostMapping("/{id}/re-enrich")
     public ResponseEntity<ThoughtResponse> reenrichThought(
             @PathVariable String id,
             @RequestBody java.util.Map<String, String> request,
-            @RequestHeader(value = "X-User-Id", defaultValue = "anonymous") String userId) {
+            Authentication authentication) {
+        String userId = authentication.getName();
         String instructions = request.get("additionalInstructions");
         log.info("Re-enriching thought: {} by user: {}", id, userId);
         ThoughtResponse response = thoughtsService.reenrichThought(id, instructions, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Delete a thought.
+     *
+     * @param id             The thought ID
+     * @param authentication Authentication object
+     * @return No content
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteThought(
+            @PathVariable String id,
+            Authentication authentication) {
+        String userId = authentication.getName();
+        log.info("Deleting thought: {} by user: {}", id, userId);
+        thoughtsService.deleteThought(id, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Repost an already posted thought.
+     *
+     * @param id             The thought ID
+     * @param authentication Authentication object
+     * @return Reset thought response
+     */
+    @PostMapping("/{id}/repost")
+    public ResponseEntity<ThoughtResponse> repostThought(
+            @PathVariable String id,
+            Authentication authentication) {
+        String userId = authentication.getName();
+        log.info("Reposting thought: {} by user: {}", id, userId);
+        ThoughtResponse response = thoughtsService.repostThought(id, userId);
         return ResponseEntity.ok(response);
     }
 
