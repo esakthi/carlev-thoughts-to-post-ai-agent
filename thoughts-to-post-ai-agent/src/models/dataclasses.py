@@ -22,8 +22,20 @@ class RequestStatus(str, Enum):
 
     PENDING = "pending"
     PROCESSING = "processing"
+    IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    PARTIALLY_COMPLETED = "partially_completed"
     FAILED = "failed"
+
+
+class PlatformConfiguration(BaseModel):
+    """Configuration for a specific social media platform."""
+    platform: PlatformType
+    prompt: Optional[str] = None
+    additional_context: Optional[str] = Field(default=None, alias="additionalContext")
+
+    class Config:
+        populate_by_name = True
 
 
 class ThoughtRequest(BaseModel):
@@ -75,6 +87,11 @@ class ThoughtRequest(BaseModel):
         default_factory=dict,
         alias="platformPrompts",
         description="Platform-specific prompts from the database",
+    )
+    platform_configurations: list[PlatformConfiguration] = Field(
+        default_factory=list,
+        alias="platformConfigurations",
+        description="Detailed platform configurations",
     )
     version: int = Field(
         default=1,
@@ -218,6 +235,7 @@ class AgentContext:
     model_role: Optional[str] = None
     search_description: Optional[str] = None
     platform_prompts: dict[PlatformType, str] = field(default_factory=dict)
+    platform_configurations: list[PlatformConfiguration] = field(default_factory=list)
     enriched_contents: list[EnrichedContent] = field(default_factory=list)
     generated_image: Optional[GeneratedImage] = None
     conversation_history: list[dict] = field(default_factory=list)
@@ -244,14 +262,17 @@ class AgentContext:
 class AgentResponse(BaseModel):
     """Response to send back via Kafka after processing."""
 
-    request_id: str = Field(..., description="Original request identifier")
-    user_id: str = Field(..., description="User ID from the original request")
+    request_id: str = Field(..., description="Original request identifier", alias="request_id")
+    user_id: str = Field(..., description="User ID from the original request", alias="user_id")
     status: RequestStatus = Field(..., description="Processing status")
     enriched_contents: list[EnrichedContent] = Field(
-        default_factory=list, description="Enriched content for each platform"
+        default_factory=list, description="Enriched content for each platform", alias="enriched_contents"
     )
     generated_image: Optional[GeneratedImage] = Field(
-        default=None, description="Generated image if available"
+        default=None, description="Generated image if available", alias="generated_image"
+    )
+    failed_platforms: list[PlatformType] = Field(
+        default_factory=list, description="Platforms that failed enrichment", alias="failed_platforms"
     )
     version: int = Field(default=1, description="Response version")
     error_message: Optional[str] = Field(default=None, description="Error message if failed")

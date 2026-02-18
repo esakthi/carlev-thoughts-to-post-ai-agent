@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG, ThoughtCategory } from '../../models/thought.models';
+import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG, ThoughtCategory, PlatformPrompt, PlatformSelection } from '../../models/thought.models';
 import { ThoughtsService } from '../../services/thoughts.service';
 
 @Component({
@@ -56,36 +56,69 @@ import { ThoughtsService } from '../../services/thoughts.service';
       </div>
 
       <div class="form-group">
-        <label class="form-label">Select Platforms</label>
-        <div class="platforms-grid">
-          @for (platform of platforms; track platform) {
-            <label 
-              class="platform-option" 
-              [class.selected]="selectedPlatforms().includes(platform)"
-              [class.disabled]="!isPlatformEnabled(platform)"
-            >
-              <input
-                type="checkbox"
-                [checked]="selectedPlatforms().includes(platform)"
-                (change)="togglePlatform(platform)"
-                [disabled]="isLoading || !isPlatformEnabled(platform)"
-              />
-              <div class="platform-content">
-                <span class="platform-icon" [style.background]="getPlatformColor(platform)">
-                  {{ getPlatformIcon(platform) }}
-                </span>
-                <span class="platform-name">{{ getPlatformLabel(platform) }}</span>
-                @if (!isPlatformEnabled(platform)) {
-                  <span class="coming-soon">Coming Soon</span>
-                }
-              </div>
-            </label>
-          }
+        <label class="form-label">Select Platforms & Configure</label>
+        <div class="platforms-table-container">
+          <table class="platforms-table">
+            <thead>
+              <tr>
+                <th style="width: 50px"></th>
+                <th style="width: 150px">Platform</th>
+                <th>Prompt Preset</th>
+                <th>Additional Context</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (platform of platforms; track platform) {
+                <tr [class.row-selected]="isPlatformSelected(platform)">
+                  <td class="text-center">
+                    <input
+                      type="checkbox"
+                      [checked]="isPlatformSelected(platform)"
+                      (change)="togglePlatform(platform)"
+                      [disabled]="isLoading"
+                    />
+                  </td>
+                  <td>
+                    <div class="platform-cell">
+                      <span class="platform-mini-icon" [style.background]="getPlatformColor(platform)">
+                        {{ getPlatformIcon(platform) }}
+                      </span>
+                      <span>{{ getPlatformLabel(platform) }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <select
+                      class="form-input table-input"
+                      [(ngModel)]="platformConfigs[platform].presetId"
+                      [name]="platform + '_preset'"
+                      [disabled]="isLoading || !isPlatformSelected(platform)"
+                      required
+                    >
+                      <option value="" disabled selected>Select a preset...</option>
+                      @for (preset of getPresetsForPlatform(platform); track preset.id) {
+                        <option [value]="preset.id">{{ preset.name }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="text"
+                      class="form-input table-input"
+                      [(ngModel)]="platformConfigs[platform].additionalContext"
+                      [name]="platform + '_context'"
+                      placeholder="Optional per-platform instructions..."
+                      [disabled]="isLoading || !isPlatformSelected(platform)"
+                    />
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">Additional Instructions (Optional)</label>
+        <label class="form-label">Global Additional Instructions (Optional)</label>
         <input
           type="text"
           class="form-input"
@@ -112,73 +145,63 @@ import { ThoughtsService } from '../../services/thoughts.service';
     </form>
   `,
     styles: [`
-    .platforms-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: var(--spacing-md);
-    }
-
-    .platform-option {
-      cursor: pointer;
-      
-      input[type="checkbox"] {
-        display: none;
-      }
-
-      .platform-content {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: var(--spacing-sm);
-        padding: var(--spacing-lg);
-        background: var(--bg-glass);
-        border: 2px solid var(--border-color);
-        border-radius: var(--radius-md);
-        transition: all 0.3s ease;
-      }
-
-      &:hover:not(.disabled) .platform-content {
-        border-color: var(--border-focus);
-        background: rgba(255, 255, 255, 0.08);
-      }
-
-      &.selected .platform-content {
-        border-color: #667eea;
-        background: rgba(102, 126, 234, 0.1);
-        box-shadow: 0 0 20px rgba(102, 126, 234, 0.2);
-      }
-
-      &.disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-      }
-    }
-
-    .platform-icon {
-      width: 48px;
-      height: 48px;
+    .platforms-table-container {
+      background: var(--bg-glass);
+      border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .platforms-table {
+      width: 100%;
+      border-collapse: collapse;
+      
+      th {
+        text-align: left;
+        padding: var(--spacing-md);
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+      }
+
+      td {
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      tr.row-selected {
+        background: rgba(102, 126, 234, 0.05);
+      }
+    }
+
+    .platform-cell {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+    }
+
+    .platform-mini-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.25rem;
-      font-weight: 700;
+      font-size: 0.7rem;
       color: white;
+      font-weight: bold;
     }
 
-    .platform-name {
-      font-weight: 500;
+    .table-input {
+      padding: 6px 10px;
+      font-size: 0.9rem;
+      margin: 0;
     }
 
-    .coming-soon {
-      font-size: 0.625rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      background: var(--bg-glass);
-      padding: 2px 6px;
-      border-radius: var(--radius-sm);
-    }
+    .text-center { text-align: center; }
 
     .submit-btn {
       width: 100%;
@@ -230,15 +253,24 @@ export class ThoughtInputComponent implements OnInit {
     selectedCategoryId = '';
     additionalInstructions = '';
     categories = signal<ThoughtCategory[]>([]);
+    allPresets = signal<PlatformPrompt[]>([]);
     selectedPlatforms = signal<PlatformType[]>(['LINKEDIN']);
     isLinkedInAuthorized = signal(false);
     isCheckingAuth = signal(false);
 
     platforms: PlatformType[] = ['LINKEDIN', 'FACEBOOK', 'INSTAGRAM'];
 
+    // Track configurations per platform
+    platformConfigs: Record<string, { presetId: string; additionalContext: string }> = {
+        'LINKEDIN': { presetId: '', additionalContext: '' },
+        'FACEBOOK': { presetId: '', additionalContext: '' },
+        'INSTAGRAM': { presetId: '', additionalContext: '' }
+    };
+
     ngOnInit() {
         this.checkLinkedInStatus();
         this.loadCategories();
+        this.loadPresets();
     }
 
     loadCategories() {
@@ -255,6 +287,30 @@ export class ThoughtInputComponent implements OnInit {
             },
             error: (err) => console.error('Failed to load categories', err)
         });
+    }
+
+    loadPresets() {
+        this.thoughtsService.getPlatformPrompts().subscribe({
+            next: (presets) => {
+                this.allPresets.set(presets);
+                // Select first available preset for each platform by default
+                this.platforms.forEach(p => {
+                    const platformPresets = presets.filter(pr => pr.platform === p);
+                    if (platformPresets.length > 0) {
+                        this.platformConfigs[p].presetId = platformPresets[0].id!;
+                    }
+                });
+            },
+            error: (err) => console.error('Failed to load presets', err)
+        });
+    }
+
+    getPresetsForPlatform(platform: PlatformType): PlatformPrompt[] {
+        return this.allPresets().filter(p => p.platform === platform);
+    }
+
+    isPlatformSelected(platform: PlatformType): boolean {
+        return this.selectedPlatforms().includes(platform);
     }
 
     checkLinkedInStatus() {
@@ -314,11 +370,19 @@ export class ThoughtInputComponent implements OnInit {
     onSubmit() {
         if (!this.thought.trim() || this.selectedPlatforms().length === 0) return;
 
+        // Create platform specific configurations
+        const configs: PlatformSelection[] = this.selectedPlatforms().map(p => ({
+            platform: p,
+            presetId: this.platformConfigs[p].presetId,
+            additionalContext: this.platformConfigs[p].additionalContext.trim() || undefined
+        }));
+
         const request: CreateThoughtRequest = {
             thought: this.thought.trim(),
             categoryId: this.selectedCategoryId,
             platforms: this.selectedPlatforms(),
-            additionalInstructions: this.additionalInstructions.trim() || undefined
+            additionalInstructions: this.additionalInstructions.trim() || undefined,
+            platformConfigs: configs
         };
 
         this.submitThought.emit(request);

@@ -13,6 +13,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -56,7 +57,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void seedPlatformPrompts() {
-        seedPlatformPrompt(PlatformType.LINKEDIN, """
+        seedPlatformPrompt("Professional LinkedIn", "Standard professional hook and authority building.", PlatformType.LINKEDIN, """
                 You are an expert LinkedIn content creator specializing in professional
                 thought leadership posts. Your content should be:
                 - Professional yet engaging and personable
@@ -68,7 +69,7 @@ public class DataInitializer implements CommandLineRunner {
 
                 Write content that establishes authority while being relatable to professionals.""");
 
-        seedPlatformPrompt(PlatformType.FACEBOOK, """
+        seedPlatformPrompt("Engaging Facebook", "Conversational and community focused.", PlatformType.FACEBOOK, """
                 You are an expert Facebook content creator. Your content should be:
                 - Conversational and engaging
                 - Between 100-250 words for optimal engagement
@@ -79,7 +80,7 @@ public class DataInitializer implements CommandLineRunner {
 
                 Write content that feels personal and encourages community interaction.""");
 
-        seedPlatformPrompt(PlatformType.INSTAGRAM, """
+        seedPlatformPrompt("Visual Instagram", "Engaging captions for visual media.", PlatformType.INSTAGRAM, """
                 You are an expert Instagram caption writer. Your content should be:
                 - Engaging and visually descriptive
                 - Start with a hook before the "more" fold (first 125 characters)
@@ -91,11 +92,13 @@ public class DataInitializer implements CommandLineRunner {
                 Write content that complements visual media and encourages saves and shares.""");
     }
 
-    private void seedPlatformPrompt(PlatformType platform, String promptText) {
-        Optional<PlatformPrompt> existing = platformPromptRepository.findByPlatform(platform);
+    private void seedPlatformPrompt(String name, String description, PlatformType platform, String promptText) {
+        List<PlatformPrompt> existing = platformPromptRepository.findAllByPlatform(platform);
         if (existing.isEmpty()) {
             log.info("Seeding platform prompt for {}...", platform);
             PlatformPrompt prompt = PlatformPrompt.builder()
+                    .name(name)
+                    .description(description)
                     .platform(platform)
                     .promptText(promptText)
                     .build();

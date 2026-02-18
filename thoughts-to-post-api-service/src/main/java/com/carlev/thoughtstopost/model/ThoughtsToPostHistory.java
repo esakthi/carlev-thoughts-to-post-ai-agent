@@ -54,6 +54,8 @@ public class ThoughtsToPostHistory {
     // Snapshot of the document state at this version
     private String userId;
     private String originalThought;
+    private String additionalInstructions;
+    private List<ThoughtsToPost.PlatformSelection> platformSelections;
     private List<ThoughtsToPost.EnrichedContent> enrichedContents;
     private String generatedImageUrl;
     private List<PlatformType> selectedPlatforms;
@@ -87,6 +89,8 @@ public class ThoughtsToPostHistory {
                 .performedBy(performedBy)
                 .userId(thought.getUserId())
                 .originalThought(thought.getOriginalThought())
+                .additionalInstructions(thought.getAdditionalInstructions())
+                .platformSelections(thought.getPlatformSelections())
                 .enrichedContents(thought.getEnrichedContents())
                 .generatedImageUrl(thought.getGeneratedImageUrl())
                 .selectedPlatforms(thought.getSelectedPlatforms())

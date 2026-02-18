@@ -117,11 +117,37 @@ class ThoughtsToPostAgent:
             # Sync history from persistent context to agent's memory
             self._sync_history_to_agent(context)
 
-            # Step 1: Enrich content for all platforms
+            # Step 1: Enrich content for each platform with intermediate updates
             logger.info(f"Enriching content for platforms: {request.platforms}")
-            enriched_contents = self.content_agent.enrich_all_platforms(request)
+            all_enriched_contents = []
+            failed_platforms = []
 
-            if not enriched_contents and request.platforms:
+            for platform in request.platforms:
+                logger.info(f"-> Processing platform: {platform}")
+                try:
+                    enriched = self.content_agent.enrich_for_platform(request, platform)
+                    all_enriched_contents.append(enriched)
+
+                    # Update local context incrementally
+                    self.memory.update_context(
+                        request.request_id, enriched_contents=all_enriched_contents
+                    )
+
+                    # Send IN_PROGRESS update for this specific platform
+                    progress_response = AgentResponse(
+                        request_id=request.request_id,
+                        user_id=request.user_id,
+                        status=RequestStatus.IN_PROGRESS,
+                        enriched_contents=[enriched],
+                        version=context.current_version,
+                    )
+                    self.producer.send(progress_response)
+                    logger.info(f"Sent intermediate IN_PROGRESS update for {platform}")
+                except Exception as e:
+                    logger.error(f"Failed to enrich for {platform}: {e}")
+                    failed_platforms.append(platform)
+
+            if not all_enriched_contents and request.platforms:
                 msg = f"Failed to enrich content for any of the requested platforms: {request.platforms}"
                 logger.error(msg)
                 raise Exception(msg)
@@ -129,18 +155,13 @@ class ThoughtsToPostAgent:
             # Sync history back from agent to context
             self._sync_history_from_agent(context)
 
-            # Update context with enriched contents
-            self.memory.update_context(
-                request.request_id, enriched_contents=enriched_contents
-            )
-
             # Step 2: Generate image based on the first platform's content
             generated_image = None
-            if enriched_contents:
+            if all_enriched_contents:
                 logger.info("Generating image for content...")
                 try:
                     generated_image = self.image_agent.generate_for_content(
-                        enriched_contents[0]
+                        all_enriched_contents[0]
                     )
                     self.memory.update_context(
                         request.request_id, generated_image=generated_image
@@ -148,20 +169,32 @@ class ThoughtsToPostAgent:
                 except Exception as e:
                     logger.warning(f"Image generation failed, continuing without image: {e}")
 
-            # Mark as completed
-            logger.info(f"Marking request {request.request_id} as COMPLETED")
+            # Determine final status
+            final_status = RequestStatus.COMPLETED
+            if failed_platforms:
+                if all_enriched_contents:
+                    final_status = RequestStatus.PARTIALLY_COMPLETED
+                    logger.info(f"Marking request {request.request_id} as PARTIALLY_COMPLETED")
+                else:
+                    final_status = RequestStatus.FAILED
+                    logger.error(f"Marking request {request.request_id} as FAILED")
+            else:
+                logger.info(f"Marking request {request.request_id} as COMPLETED")
+
             self.memory.update_context(
-                request.request_id, status=RequestStatus.COMPLETED
+                request.request_id, status=final_status
             )
 
-            # Create and send response
+            # Create and send final response
             response = AgentResponse(
                 request_id=request.request_id,
                 user_id=request.user_id,
-                status=RequestStatus.COMPLETED,
-                enriched_contents=enriched_contents,
+                status=final_status,
+                enriched_contents=all_enriched_contents,
                 generated_image=generated_image,
+                failed_platforms=failed_platforms,
                 version=context.current_version,
+                error_message=f"Failed platforms: {failed_platforms}" if failed_platforms else None
             )
 
             logger.info(f"Sending success response for request {request.request_id} to Kafka")

@@ -164,4 +164,8 @@ export class ThoughtsService {
     updatePlatformPrompt(id: string, prompt: any): Observable<any> {
         return this.http.put<any>(`${this.adminUrl}/platform-prompts/${id}`, prompt);
     }
+
+    deletePlatformPrompt(id: string): Observable<any> {
+        return this.http.delete<any>(`${this.adminUrl}/platform-prompts/${id}`);
+    }
 }

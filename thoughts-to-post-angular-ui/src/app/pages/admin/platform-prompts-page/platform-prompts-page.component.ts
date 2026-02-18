@@ -12,6 +12,7 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
     <div class="container fade-in">
       <div class="page-header">
         <h1>Manage Platform Prompts</h1>
+        <button class="btn btn-primary" (click)="addNewPrompt()">+ Add New Preset</button>
       </div>
 
       <div class="card-grid">
@@ -22,9 +23,16 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
                 <span class="platform-icon" [style.background]="PLATFORM_CONFIG[prompt.platform].color">
                   {{ PLATFORM_CONFIG[prompt.platform].icon }}
                 </span>
-                <h3>{{ PLATFORM_CONFIG[prompt.platform].label }}</h3>
+                <div>
+                  <h3>{{ prompt.name || 'Untitled Preset' }}</h3>
+                  <p class="preset-description">{{ prompt.description }}</p>
+                  <small class="platform-label">{{ PLATFORM_CONFIG[prompt.platform].label }}</small>
+                </div>
               </div>
-              <button class="btn-icon" (click)="editPrompt(prompt)">✏️ Edit</button>
+              <div class="card-actions">
+                <button class="btn-icon" (click)="editPrompt(prompt)">✏️ Edit</button>
+                <button class="btn-icon delete" (click)="deletePrompt(prompt)">🗑️ Delete</button>
+              </div>
             </div>
             <div class="prompt-preview">
               <pre>{{ prompt.promptText }}</pre>
@@ -38,11 +46,27 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
     @if (showModal()) {
       <div class="modal-overlay">
         <div class="modal-content card">
-          <h2>Edit {{ PLATFORM_CONFIG[currentPrompt().platform].label }} Prompt</h2>
+          <h2>{{ currentPrompt().id ? 'Edit' : 'Add' }} Prompt Preset</h2>
           <form (ngSubmit)="savePrompt()">
             <div class="form-group">
+              <label class="form-label">Platform</label>
+              <select class="form-input" [(ngModel)]="currentPrompt().platform" name="platform" required>
+                @for (p of platforms; track p) {
+                  <option [value]="p">{{ PLATFORM_CONFIG[p].label }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Preset Name</label>
+              <input type="text" class="form-input" [(ngModel)]="currentPrompt().name" name="name" required placeholder="e.g., Professional Hook">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <input type="text" class="form-input" [(ngModel)]="currentPrompt().description" name="description" required placeholder="e.g., Focuses on establishing authority...">
+            </div>
+            <div class="form-group">
               <label class="form-label">Prompt Text</label>
-              <textarea class="form-textarea" [(ngModel)]="currentPrompt().promptText" name="prompt" rows="15" required></textarea>
+              <textarea class="form-textarea" [(ngModel)]="currentPrompt().promptText" name="prompt" rows="10" required></textarea>
             </div>
             <div class="modal-actions">
               <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
@@ -55,6 +79,9 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
   `,
     styles: [`
     .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       margin-bottom: var(--spacing-xl);
     }
 
@@ -73,8 +100,21 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
 
     .platform-info {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: var(--spacing-md);
+    }
+
+    .preset-description {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .platform-label {
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.7rem;
     }
 
     .platform-icon {
@@ -88,6 +128,11 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
       font-weight: bold;
     }
 
+    .card-actions {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
+
     .btn-icon {
       background: rgba(255,255,255,0.05);
       border: 1px solid var(--border-color);
@@ -97,6 +142,7 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
       border-radius: var(--radius-md);
       transition: all 0.3s;
       &:hover { background: rgba(255,255,255,0.1); }
+      &.delete:hover { border-color: #f56565; color: #f56565; }
     }
 
     .prompt-preview {
@@ -143,10 +189,13 @@ export class PlatformPromptsPageComponent implements OnInit {
     prompts = signal<PlatformPrompt[]>([]);
     showModal = signal(false);
     currentPrompt = signal<PlatformPrompt>({
+        name: '',
+        description: '',
         platform: 'LINKEDIN',
         promptText: ''
     });
 
+    platforms: PlatformType[] = ['LINKEDIN', 'FACEBOOK', 'INSTAGRAM'];
     PLATFORM_CONFIG = PLATFORM_CONFIG;
 
     ngOnInit() {
@@ -157,17 +206,43 @@ export class PlatformPromptsPageComponent implements OnInit {
         this.thoughtsService.getPlatformPrompts().subscribe(p => this.prompts.set(p));
     }
 
+    addNewPrompt() {
+        this.currentPrompt.set({
+            name: '',
+            description: '',
+            platform: 'LINKEDIN',
+            promptText: ''
+        });
+        this.showModal.set(true);
+    }
+
     editPrompt(prompt: PlatformPrompt) {
         this.currentPrompt.set({ ...prompt });
         this.showModal.set(true);
     }
 
     savePrompt() {
-        this.thoughtsService.updatePlatformPrompt(this.currentPrompt().id!, this.currentPrompt())
-            .subscribe(() => {
-                this.loadPrompts();
-                this.closeModal();
-            });
+        const prompt = this.currentPrompt();
+        if (prompt.id) {
+            this.thoughtsService.updatePlatformPrompt(prompt.id, prompt)
+                .subscribe(() => {
+                    this.loadPrompts();
+                    this.closeModal();
+                });
+        } else {
+            this.thoughtsService.createPlatformPrompt(prompt)
+                .subscribe(() => {
+                    this.loadPrompts();
+                    this.closeModal();
+                });
+        }
+    }
+
+    deletePrompt(prompt: PlatformPrompt) {
+        if (confirm(`Are you sure you want to delete the preset "${prompt.name}"?`)) {
+            this.thoughtsService.deletePlatformPrompt(prompt.id!)
+                .subscribe(() => this.loadPrompts());
+        }
     }
 
     closeModal() {
