@@ -149,7 +149,8 @@ import { ThoughtsService } from '../../services/thoughts.service';
       background: var(--bg-glass);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
-      overflow: hidden;
+      overflow-y: auto;
+      max-height: 300px;
     }
 
     .platforms-table {
@@ -340,8 +341,8 @@ export class ThoughtInputComponent implements OnInit {
     }
 
     isPlatformEnabled(platform: PlatformType): boolean {
-        // Only LinkedIn is implemented for now
-        return platform === 'LINKEDIN';
+        // Allow all social media platforms for enrichment
+        return ['LINKEDIN', 'FACEBOOK', 'INSTAGRAM'].includes(platform);
     }
 
     togglePlatform(platform: PlatformType) {

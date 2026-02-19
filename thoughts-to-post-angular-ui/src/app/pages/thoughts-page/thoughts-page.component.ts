@@ -90,18 +90,13 @@ import {
 
     .content-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: var(--spacing-xl);
       align-items: start;
-
-      @media (max-width: 968px) {
-        grid-template-columns: 1fr;
-      }
     }
 
     .input-section {
-      position: sticky;
-      top: 100px;
+      width: 100%;
     }
 
     .placeholder-section {

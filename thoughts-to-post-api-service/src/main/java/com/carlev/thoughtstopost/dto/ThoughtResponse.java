@@ -66,6 +66,8 @@ public class ThoughtResponse {
         private List<String> hashtags;
         private String callToAction;
         private Integer characterCount;
+        private PostStatus status;
+        private String errorMessage;
     }
 
     /**
@@ -91,6 +93,8 @@ public class ThoughtResponse {
                                 .hashtags(ec.getHashtags())
                                 .callToAction(ec.getCallToAction())
                                 .characterCount(ec.getCharacterCount())
+                                .status(ec.getStatus())
+                                .errorMessage(ec.getErrorMessage())
                                 .build())
                         .toList()
                 : List.of();
