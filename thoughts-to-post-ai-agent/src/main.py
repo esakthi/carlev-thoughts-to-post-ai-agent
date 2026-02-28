@@ -133,7 +133,11 @@ class ThoughtsToPostAgent:
                     if content:
                         logger.info(f"Generating refined image for {platform_type.value}")
                         try:
-                            new_image = self.image_agent.generate_for_content(content, request.image_refinement_instructions)
+                            new_image = self.image_agent.generate_for_content(
+                                content,
+                                request.image_refinement_instructions,
+                                request_id=request.request_id,
+                            )
                             content.images.append(new_image)
 
                             # Update local context incrementally
@@ -170,7 +174,10 @@ class ThoughtsToPostAgent:
                     # Step 2: Generate unique image for this platform
                     logger.info(f"Generating unique image for platform: {platform}")
                     try:
-                        initial_image = self.image_agent.generate_for_content(enriched)
+                        initial_image = self.image_agent.generate_for_content(
+                            enriched,
+                            request_id=request.request_id,
+                        )
                         enriched.images = [initial_image]
                     except Exception as e:
                         logger.warning(f"Initial image generation failed for {platform}: {e}")

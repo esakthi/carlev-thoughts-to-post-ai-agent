@@ -53,6 +53,10 @@ class Settings(BaseSettings):
         default=None,
         description="OpenAI API key for DALL-E"
     )
+    image_save_dir: str = Field(
+        default="../thoughts-to-post-api-service/src/main/resources/images",
+        description="Directory to save generated images for validation (relative to agent working dir)"
+    )
 
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")
