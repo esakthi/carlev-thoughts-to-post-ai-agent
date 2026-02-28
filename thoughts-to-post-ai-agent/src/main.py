@@ -14,6 +14,8 @@ from .models import (
     AgentResponse,
     RequestStatus,
     AgentContext,
+    EnrichedContent,
+    GeneratedImage,
 )
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
@@ -104,8 +106,8 @@ class ThoughtsToPostAgent:
         else:
             logger.info(f"Found existing context for {request.request_id} (Version: {context.current_version})")
             # If refinement, add to context
-            if request.additional_instructions and request.version > 1:
-                logger.info(f"Refinement detected for request {request.request_id}. Instructions: {request.additional_instructions}")
+            if request.additional_instructions and request.version > context.current_version:
+                logger.info(f"Refinement detected for request {request.request_id}.")
                 self.memory.add_refinement(request.request_id, request.additional_instructions)
 
         try:
@@ -117,23 +119,79 @@ class ThoughtsToPostAgent:
             # Sync history from persistent context to agent's memory
             self._sync_history_to_agent(context)
 
-            # Step 1: Enrich content for each platform with intermediate updates
+            # Case 1: Image Refinement only
+            if request.image_refinement_instructions:
+                logger.info(f"Processing image refinement for request {request.request_id}")
+
+                platforms_to_process = request.platforms or [p.platform for p in context.enriched_contents]
+                if request.target_platform:
+                    platforms_to_process = [request.target_platform]
+
+                for platform_type in platforms_to_process:
+                    # Find existing enriched content
+                    content = next((c for c in context.enriched_contents if c.platform == platform_type), None)
+                    if content:
+                        logger.info(f"Generating refined image for {platform_type.value}")
+                        try:
+                            new_image = self.image_agent.generate_for_content(content, request.image_refinement_instructions)
+                            content.images.append(new_image)
+
+                            # Update local context incrementally
+                            self.memory.update_context(
+                                request.request_id, enriched_contents=context.enriched_contents
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to generate refined image for {platform_type}: {e}")
+
+                final_status = RequestStatus.COMPLETED
+                self.memory.update_context(request.request_id, status=final_status)
+
+                response = AgentResponse(
+                    request_id=request.request_id,
+                    user_id=request.user_id,
+                    status=final_status,
+                    enriched_contents=context.enriched_contents,
+                    version=context.current_version,
+                )
+                self.producer.send(response)
+                return
+
+            # Case 2: Full enrichment or Text Refinement (Standard Flow)
             logger.info(f"Enriching content for platforms: {request.platforms}")
-            all_enriched_contents = []
+            all_enriched_contents = context.enriched_contents or []
             failed_platforms = []
 
             for platform in request.platforms:
                 logger.info(f"-> Processing platform: {platform}")
                 try:
+                    # Step 1: Enrich Text
                     enriched = self.content_agent.enrich_for_platform(request, platform)
-                    all_enriched_contents.append(enriched)
+
+                    # Step 2: Generate unique image for this platform
+                    logger.info(f"Generating unique image for platform: {platform}")
+                    try:
+                        initial_image = self.image_agent.generate_for_content(enriched)
+                        enriched.images = [initial_image]
+                    except Exception as e:
+                        logger.warning(f"Initial image generation failed for {platform}: {e}")
+                        enriched.images = []
+
+                    # Update list
+                    existing_idx = next((i for i, c in enumerate(all_enriched_contents) if c.platform == platform), -1)
+                    if existing_idx >= 0:
+                        # Carry over old images if this is a text-only refinement?
+                        # Requirements say "regenerate one and keep history".
+                        # For text refinement, we probably want new images representing new text.
+                        all_enriched_contents[existing_idx] = enriched
+                    else:
+                        all_enriched_contents.append(enriched)
 
                     # Update local context incrementally
                     self.memory.update_context(
                         request.request_id, enriched_contents=all_enriched_contents
                     )
 
-                    # Send IN_PROGRESS update for this specific platform
+                    # Send IN_PROGRESS update
                     progress_response = AgentResponse(
                         request_id=request.request_id,
                         user_id=request.user_id,
@@ -142,48 +200,26 @@ class ThoughtsToPostAgent:
                         version=context.current_version,
                     )
                     self.producer.send(progress_response)
-                    logger.info(f"Sent intermediate IN_PROGRESS update for {platform}")
                 except Exception as e:
                     logger.error(f"Failed to enrich for {platform}: {e}")
                     failed_platforms.append(platform)
 
             if not all_enriched_contents and request.platforms:
-                msg = f"Failed to enrich content for any of the requested platforms: {request.platforms}"
-                logger.error(msg)
+                msg = f"Failed to enrich content for any of the requested platforms"
                 raise Exception(msg)
 
-            # Sync history back from agent to context
+            # Sync history back
             self._sync_history_from_agent(context)
-
-            # Step 2: Generate image based on the first platform's content
-            generated_image = None
-            if all_enriched_contents:
-                logger.info("Generating image for content...")
-                try:
-                    generated_image = self.image_agent.generate_for_content(
-                        all_enriched_contents[0]
-                    )
-                    self.memory.update_context(
-                        request.request_id, generated_image=generated_image
-                    )
-                except Exception as e:
-                    logger.warning(f"Image generation failed, continuing without image: {e}")
 
             # Determine final status
             final_status = RequestStatus.COMPLETED
             if failed_platforms:
                 if all_enriched_contents:
                     final_status = RequestStatus.PARTIALLY_COMPLETED
-                    logger.info(f"Marking request {request.request_id} as PARTIALLY_COMPLETED")
                 else:
                     final_status = RequestStatus.FAILED
-                    logger.error(f"Marking request {request.request_id} as FAILED")
-            else:
-                logger.info(f"Marking request {request.request_id} as COMPLETED")
 
-            self.memory.update_context(
-                request.request_id, status=final_status
-            )
+            self.memory.update_context(request.request_id, status=final_status)
 
             # Create and send final response
             response = AgentResponse(
@@ -191,27 +227,17 @@ class ThoughtsToPostAgent:
                 user_id=request.user_id,
                 status=final_status,
                 enriched_contents=all_enriched_contents,
-                generated_image=generated_image,
                 failed_platforms=failed_platforms,
                 version=context.current_version,
                 error_message=f"Failed platforms: {failed_platforms}" if failed_platforms else None
             )
 
-            logger.info(f"Sending success response for request {request.request_id} to Kafka")
             self.producer.send(response)
             logger.info(f"Successfully processed request: {request.request_id}")
 
         except Exception as e:
             logger.error(f"Failed to process request {request.request_id}: {e}", exc_info=True)
-
-            # Update context with error
-            self.memory.update_context(
-                request.request_id,
-                status=RequestStatus.FAILED,
-                error_message=str(e),
-            )
-
-            # Send error response
+            self.memory.update_context(request.request_id, status=RequestStatus.FAILED, error_message=str(e))
             error_response = AgentResponse(
                 request_id=request.request_id,
                 user_id=request.user_id,
@@ -219,30 +245,15 @@ class ThoughtsToPostAgent:
                 error_message=str(e),
                 version=context.current_version if context else 1,
             )
-
-            logger.info(f"Sending error response for request {request.request_id} to Kafka")
             self.producer.send(error_response)
 
     def start(self) -> None:
         """Start the agent and begin processing messages."""
-        logger.info("=" * 60)
         logger.info("Starting Thoughts-to-Post AI Agent")
-        logger.info(f"Kafka Bootstrap Servers: {settings.kafka_bootstrap_servers}")
-        logger.info(f"Request Topic: {settings.kafka_request_topic}")
-        logger.info(f"Response Topic: {settings.kafka_response_topic}")
-        logger.info(f"Ollama Model: {settings.ollama_model}")
-        logger.info(f"Image Generator: {settings.image_generator_type}")
-        logger.info("=" * 60)
-
         self._setup_signal_handlers()
-
         try:
-            # Connect the producer
             self.producer.connect()
-
-            # Start consuming messages (blocking)
             self.consumer.start(self.process_request)
-
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt received")
         finally:
@@ -253,11 +264,9 @@ class ThoughtsToPostAgent:
         logger.info("Shutting down AI Agent...")
         self.consumer.stop()
         self.producer.close()
-        logger.info("AI Agent shutdown complete")
 
 
 def main():
-    """Main entry point."""
     agent = ThoughtsToPostAgent()
     agent.start()
 

@@ -5,7 +5,8 @@ import {
     ThoughtResponse,
     CreateThoughtRequest,
     ApproveThoughtRequest,
-    ThoughtHistory
+    ThoughtHistory,
+    PlatformType
 } from '../models/thought.models';
 
 @Injectable({
@@ -92,6 +93,13 @@ export class ThoughtsService {
      */
     reenrichThought(id: string, additionalInstructions: string): Observable<ThoughtResponse> {
         return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/re-enrich`, { additionalInstructions });
+    }
+
+    /**
+     * Refine image for a thought
+     */
+    refineImage(id: string, refinementInstructions: string, platform: PlatformType): Observable<ThoughtResponse> {
+        return this.http.post<ThoughtResponse>(`${this.apiUrl}/${id}/refine-image`, { refinementInstructions, platform });
     }
 
     /**

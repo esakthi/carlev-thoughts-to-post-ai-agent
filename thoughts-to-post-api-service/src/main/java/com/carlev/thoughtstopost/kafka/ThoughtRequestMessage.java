@@ -32,6 +32,10 @@ public class ThoughtRequestMessage {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime createdAt;
 
+    // For image refinement
+    private String imageRefinementInstructions;
+    private PlatformType targetPlatform; // Optional, if refining for a specific platform
+
     @Data
     @Builder
     @NoArgsConstructor

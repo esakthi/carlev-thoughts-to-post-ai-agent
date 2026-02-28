@@ -34,7 +34,7 @@ public class ThoughtResponseMessage {
     private List<EnrichedContentMessage> enrichedContents;
     
     @JsonProperty("generated_image") // Map from snake_case to camelCase
-    private GeneratedImageMessage generatedImage;
+    private GeneratedImageMessage generatedImage; // Legacy support
 
     @JsonProperty("failed_platforms")
     private List<PlatformType> failedPlatforms;
@@ -67,6 +67,9 @@ public class ThoughtResponseMessage {
         
         @JsonProperty("character_count")
         private Integer characterCount;
+
+        @JsonProperty("images")
+        private List<GeneratedImageMessage> images;
     }
 
     /**
@@ -78,6 +81,9 @@ public class ThoughtResponseMessage {
     @AllArgsConstructor
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class GeneratedImageMessage {
+        @JsonProperty("id")
+        private String id;
+
         @JsonProperty("image_base64")
         private String imageBase64;
         
@@ -89,5 +95,12 @@ public class ThoughtResponseMessage {
         
         private Integer width;
         private Integer height;
+
+        @JsonProperty("tag")
+        private String tag;
+
+        @JsonProperty("created_at")
+        @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
+        private LocalDateTime createdAt;
     }
 }
