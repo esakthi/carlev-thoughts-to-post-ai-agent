@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ThoughtsService } from '../../services/thoughts.service';
 import { EnrichedContentComponent } from '../../components/enriched-content/enriched-content.component';
-import { ThoughtResponse, ApproveThoughtRequest } from '../../models/thought.models';
+import { ThoughtResponse, ApproveThoughtRequest, PlatformType } from '../../models/thought.models';
 
 @Component({
     selector: 'app-view-post-page',
@@ -30,6 +30,7 @@ import { ThoughtResponse, ApproveThoughtRequest } from '../../models/thought.mod
             (reject)="onReject()"
             (updateContent)="onUpdate($event)"
             (reenrich)="onReenrich($event)"
+            (refineImage)="onRefineImage($event)"
             (delete)="onDelete()"
             (repost)="onRepost()"
           />
@@ -50,60 +51,10 @@ import { ThoughtResponse, ApproveThoughtRequest } from '../../models/thought.mod
     </div>
   `,
     styles: [`
-    .page-header {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-lg);
-      margin-bottom: var(--spacing-xl);
-
-      h1 { margin: 0; }
-    }
-
-    .btn-back {
-      background: none;
-      border: 1px solid var(--border-color);
-      color: var(--text-secondary);
-      padding: var(--spacing-sm) var(--spacing-md);
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      transition: all 0.3s ease;
-
-      &:hover {
-        background: var(--bg-card);
-        color: var(--text-primary);
-      }
-    }
-
-    .loading-state, .error-state {
-      text-align: center;
-      padding: var(--spacing-2xl);
-    }
-
-    .error-toast {
-      position: fixed;
-      bottom: var(--spacing-xl);
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--error-gradient);
-      color: white;
-      padding: var(--spacing-md) var(--spacing-lg);
-      border-radius: var(--radius-md);
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-md);
-      box-shadow: var(--shadow-lg);
-      z-index: 1000;
-
-      .close-btn {
-        background: none;
-        border: none;
-        color: white;
-        font-size: 1.5rem;
-        cursor: pointer;
-        padding: 0;
-        line-height: 1;
-      }
-    }
+    .page-header { display: flex; align-items: center; gap: var(--spacing-lg); margin-bottom: var(--spacing-xl); h1 { margin: 0; } }
+    .btn-back { background: none; border: 1px solid var(--border-color); color: var(--text-secondary); padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; &:hover { background: var(--bg-card); color: var(--text-primary); } }
+    .loading-state, .error-state { text-align: center; padding: var(--spacing-2xl); }
+    .error-toast { position: fixed; bottom: var(--spacing-xl); left: 50%; transform: translateX(-50%); background: var(--error-gradient); color: white; padding: var(--spacing-md) var(--spacing-lg); border-radius: var(--radius-md); display: flex; align-items: center; gap: var(--spacing-md); box-shadow: var(--shadow-lg); z-index: 1000; .close-btn { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1; } }
   `]
 })
 export class ViewPostPageComponent implements OnInit {
@@ -192,6 +143,18 @@ export class ViewPostPageComponent implements OnInit {
                 this.startPolling(updated.id);
             },
             error: (err) => this.error.set('Re-enrichment failed: ' + err.message)
+        });
+    }
+
+    onRefineImage(event: { platform: PlatformType, instructions: string }) {
+        const t = this.thought();
+        if (!t) return;
+        this.thoughtsService.refineImage(t.id, event.instructions, event.platform).subscribe({
+            next: (updated) => {
+                this.thought.set(updated);
+                this.startPolling(updated.id);
+            },
+            error: (err) => this.error.set('Image refinement failed: ' + err.message)
         });
     }
 

@@ -15,6 +15,18 @@ export type PostStatus =
     | 'REJECTED'
     | 'PARTIALLY_COMPLETED';
 
+export interface GeneratedImage {
+    id: string;
+    url: string;
+    prompt: string;
+    format: string;
+    width: number;
+    height: number;
+    selected: boolean;
+    tag?: string;
+    createdAt: string;
+}
+
 export interface EnrichedContent {
     platform: PlatformType;
     title?: string;
@@ -22,6 +34,7 @@ export interface EnrichedContent {
     hashtags: string[];
     callToAction?: string;
     characterCount: number;
+    images?: GeneratedImage[];
 }
 
 export interface ThoughtResponse {
