@@ -8,7 +8,7 @@ spring:
   # MongoDB Configuration
   data:
     mongodb:
-      uri: mongodb://admin:admin@0.0.0.0:27017/thoughtstopost?authSource=admin
+      uri: mongodb://admin:admin@localhost:27017/thoughtstopost?authSource=admin
       database: thoughtstopost
 
   # Kafka Configuration

@@ -108,21 +108,34 @@ public class ThoughtsServiceTest {
         when(thoughtsRepository.findById("thought-1")).thenReturn(Optional.of(thought));
         when(thoughtsRepository.save(any())).thenAnswer(i -> i.getArguments()[0]);
 
+        ThoughtResponseMessage.GeneratedImageMessage image = new ThoughtResponseMessage.GeneratedImageMessage();
+        image.setId("img-1");
+        image.setImageBase64("abc");
+        image.setImageFormat("png");
+
+        ThoughtResponseMessage.EnrichedContentMessage ecMsg = new ThoughtResponseMessage.EnrichedContentMessage();
+        ecMsg.setPlatform(PlatformType.LINKEDIN);
+        ecMsg.setBody("Some enriched body");
+        ecMsg.setImages(List.of(image));
+
         ThoughtResponseMessage message = new ThoughtResponseMessage();
         message.setRequestId("thought-1");
         message.setStatus("completed");
-
-        ThoughtResponseMessage.GeneratedImageMessage image = new ThoughtResponseMessage.GeneratedImageMessage();
-        image.setImageBase64("abc");
-        image.setImageFormat("png");
-        message.setGeneratedImage(image);
+        message.setEnrichedContents(List.of(ecMsg));
 
         // Act
         thoughtsService.handleAgentResponse(message);
 
         // Assert
         assertEquals(PostStatus.ENRICHED, thought.getStatus());
-        assertEquals("abc", thought.getGeneratedImageBase64());
-        assertEquals("data:image/png;base64,abc", thought.getGeneratedImageUrl());
+        assertFalse(thought.getEnrichedContents().isEmpty());
+
+        ThoughtsToPost.EnrichedContent savedContent = thought.getEnrichedContents().get(0);
+        assertEquals(PlatformType.LINKEDIN, savedContent.getPlatform());
+        assertFalse(savedContent.getImages().isEmpty());
+
+        ThoughtsToPost.GeneratedImage savedImage = savedContent.getImages().get(0);
+        assertEquals("abc", savedImage.getBase64Data());
+        assertEquals("data:image/png;base64,abc", savedImage.getUrl());
     }
 }
