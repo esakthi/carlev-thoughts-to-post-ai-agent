@@ -1,6 +1,7 @@
 """Data classes for the AI Agent using Pydantic for validation."""
 
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -49,189 +50,100 @@ class PlatformConfiguration(BaseModel):
 
 
 class ThoughtRequest(BaseModel):
-    """Input request from Kafka containing the thought to enrich.
+    """Input request from Kafka containing the thought to enrich."""
 
-    Note:
-        The upstream Kafka message uses camelCase keys and uppercase platform names.
-        Field aliases and validators are used here to adapt that payload into our
-        internal snake_case + enum-based model.
-    """
+    request_id: str = Field(..., alias="requestId")
+    user_id: str = Field(..., alias="userId")
+    original_thought: str = Field(..., alias="originalThought")
+    platforms: list[PlatformType] = Field(default_factory=list)
+    additional_instructions: Optional[str] = Field(default=None, alias="additionalInstructions")
+    model_role: Optional[str] = Field(default=None, alias="modelRole")
+    search_description: Optional[str] = Field(default=None, alias="searchDescription")
+    platform_prompts: dict[PlatformType, str] = Field(default_factory=dict, alias="platformPrompts")
+    platform_configurations: list[PlatformConfiguration] = Field(default_factory=list, alias="platformConfigurations")
+    version: int = Field(default=1)
+    created_at: datetime = Field(default_factory=datetime.utcnow, alias="createdAt")
 
-    # Map camelCase JSON keys from Kafka to our internal snake_case fields
-    request_id: str = Field(
-        ...,
-        alias="requestId",
-        description="Unique request identifier",
-    )
-    user_id: str = Field(
-        ...,
-        alias="userId",
-        description="ID of the user making the request",
-    )
-    original_thought: str = Field(
-        ...,
-        alias="originalThought",
-        description="The original thought/topic from user",
-    )
-    platforms: list[PlatformType] = Field(
-        default_factory=list,
-        alias="platforms",
-        description="Selected social media platforms",
-    )
-    additional_instructions: Optional[str] = Field(
-        default=None,
-        alias="additionalInstructions",
-        description="Additional instructions for enrichment",
-    )
-    model_role: Optional[str] = Field(
-        default=None,
-        alias="modelRole",
-        description="Dynamic system prompt (model role) from the category",
-    )
-    search_description: Optional[str] = Field(
-        default=None,
-        alias="searchDescription",
-        description="Description (search description) of the thought category",
-    )
-    platform_prompts: dict[PlatformType, str] = Field(
-        default_factory=dict,
-        alias="platformPrompts",
-        description="Platform-specific prompts from the database",
-    )
-    platform_configurations: list[PlatformConfiguration] = Field(
-        default_factory=list,
-        alias="platformConfigurations",
-        description="Detailed platform configurations",
-    )
-    version: int = Field(
-        default=1,
-        alias="version",
-        description="Request version for refinements",
-    )
-    created_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        alias="createdAt",
-        description="Request creation time",
-    )
+    # New fields for image refinement
+    image_refinement_instructions: Optional[str] = Field(default=None, alias="imageRefinementInstructions")
+    target_platform: Optional[PlatformType] = Field(default=None, alias="targetPlatform")
 
-    # Allow population using either field names or aliases
     class Config:
-        allow_population_by_field_name = True
         populate_by_name = True
 
-    @field_validator("platforms", mode="before")
+    @field_validator("platforms", "target_platform", mode="before")
     @classmethod
     def normalize_platforms(cls, value):
-        """Normalize platform names from incoming payload.
-
-        Accepts values like ["LINKEDIN"] and converts them to lowercase so they
-        match the PlatformType enum values ("linkedin", "facebook", "instagram").
-        """
         if value is None:
-            return []
-
-        # Allow single string or enum as well as list
+            return value if not isinstance(cls.model_fields.get("platforms"), list) else []
         if isinstance(value, (str, PlatformType)):
-            value = [value]
-
-        normalized: list[str | PlatformType] = []
-        for item in value:
-            if isinstance(item, PlatformType):
-                normalized.append(item)
-            elif isinstance(item, str):
-                normalized.append(item.lower())
+            if isinstance(cls.model_fields.get("platforms"), list):
+                value = [value]
             else:
-                normalized.append(str(item).lower())
+                return value.lower() if isinstance(value, str) else value
 
-        return normalized
+        if isinstance(value, list):
+            return [item.lower() if isinstance(item, str) else item for item in value]
+        return value
 
     @field_validator("platform_prompts", mode="before")
     @classmethod
     def normalize_platform_prompts(cls, value):
-        """Normalize platform keys in prompts dictionary.
-        
-        Converts keys like 'LINKEDIN' to 'linkedin' to match PlatformType enum.
-        """
         if not isinstance(value, dict):
             return value
-            
-        normalized = {}
-        for k, v in value.items():
-            if isinstance(k, str):
-                normalized[k.lower()] = v
-            else:
-                normalized[k] = v
-        return normalized
+        return {k.lower() if isinstance(k, str) else k: v for k, v in value.items()}
 
     @field_validator("created_at", mode="before")
     @classmethod
     def parse_created_at(cls, value):
-        """Handle createdAt coming in as ISO-8601 string or array format.
-        
-        The Kafka producer now sends dates as ISO-8601 strings (e.g., "2026-02-09T21:19:05.975").
-        This validator handles both the new ISO-8601 format and the legacy array format
-        for backward compatibility.
-        """
         if value is None:
             return value
-
-        # Handle ISO-8601 string format (new format from Java producer)
         if isinstance(value, str):
             try:
-                # Normalize 'Z' suffix to '+00:00' for UTC timezone
                 normalized = value.replace('Z', '+00:00')
-                # Handle formats like:
-                # - "2026-02-09T21:19:05.975" (with microseconds)
-                # - "2026-02-09T21:19:05" (without microseconds)
-                # - "2026-02-09T21:19:05.975Z" (with Z suffix)
-                # - "2026-02-09T21:19:05+00:00" (with timezone)
                 return datetime.fromisoformat(normalized)
-            except (ValueError, AttributeError) as e:
-                # If parsing fails, log and let Pydantic handle it
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Failed to parse ISO-8601 date '{value}': {e}")
+            except (ValueError, AttributeError):
                 return value
-
-        # Handle legacy array format [year, month, day, hour, min, sec, ...] for backward compatibility
         if isinstance(value, list) and len(value) >= 6:
             try:
-                # Ignore sub-second component if present
                 return datetime(*value[:6])
             except Exception:
-                # Fallback to default parsing if this fails
                 return value
-
-        # If it's already a datetime, return as-is
-        if isinstance(value, datetime):
-            return value
-
-        # Let Pydantic handle other formats
         return value
-
-
-class EnrichedContent(BaseModel):
-    """AI-generated enriched content for a specific platform."""
-
-    platform: PlatformType = Field(..., description="Target social media platform")
-    title: Optional[str] = Field(default=None, description="Post title (if applicable)")
-    body: str = Field(..., description="Main post content")
-    hashtags: list[str] = Field(default_factory=list, description="Suggested hashtags")
-    call_to_action: Optional[str] = Field(default=None, description="Call to action text")
-    character_count: int = Field(default=0, description="Character count of the body")
-
-    def model_post_init(self, __context) -> None:
-        """Calculate character count after initialization."""
-        self.character_count = len(self.body)
 
 
 class GeneratedImage(BaseModel):
     """Generated image representation."""
 
-    image_base64: str = Field(..., description="Base64 encoded image data")
-    image_format: str = Field(default="png", description="Image format (png, jpg)")
-    prompt_used: str = Field(..., description="The prompt used to generate the image")
-    width: int = Field(default=1024, description="Image width in pixels")
-    height: int = Field(default=1024, description="Image height in pixels")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    image_base64: str = Field(..., alias="image_base64")
+    image_format: str = Field(default="png", alias="image_format")
+    prompt_used: str = Field(..., alias="prompt_used")
+    width: int = Field(default=1024)
+    height: int = Field(default=1024)
+    tag: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow, alias="created_at")
+
+    class Config:
+        populate_by_name = True
+
+
+class EnrichedContent(BaseModel):
+    """AI-generated enriched content for a specific platform."""
+
+    platform: PlatformType = Field(...)
+    title: Optional[str] = Field(default=None)
+    body: str = Field(...)
+    hashtags: list[str] = Field(default_factory=list)
+    call_to_action: Optional[str] = Field(default=None, alias="call_to_action")
+    character_count: int = Field(default=0, alias="character_count")
+    images: list[GeneratedImage] = Field(default_factory=list)
+
+    def model_post_init(self, __context) -> None:
+        self.character_count = len(self.body)
+
+    class Config:
+        populate_by_name = True
 
 
 @dataclass
@@ -247,7 +159,7 @@ class AgentContext:
     platform_prompts: dict[PlatformType, str] = field(default_factory=dict)
     platform_configurations: list[PlatformConfiguration] = field(default_factory=list)
     enriched_contents: list[EnrichedContent] = field(default_factory=list)
-    generated_image: Optional[GeneratedImage] = None
+    generated_image: Optional[GeneratedImage] = None # Legacy
     conversation_history: list[dict] = field(default_factory=list)
     refinement_requests: list[str] = field(default_factory=list)
     current_version: int = 1
@@ -257,13 +169,11 @@ class AgentContext:
     updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def add_refinement(self, instruction: str) -> None:
-        """Add a refinement request to the context."""
         self.refinement_requests.append(instruction)
         self.current_version += 1
         self.updated_at = datetime.utcnow()
 
     def update_status(self, status: RequestStatus, error: Optional[str] = None) -> None:
-        """Update the processing status."""
         self.status = status
         self.error_message = error
         self.updated_at = datetime.utcnow()
@@ -272,21 +182,16 @@ class AgentContext:
 class AgentResponse(BaseModel):
     """Response to send back via Kafka after processing."""
 
-    request_id: str = Field(..., description="Original request identifier", alias="request_id")
-    user_id: str = Field(..., description="User ID from the original request", alias="user_id")
-    status: RequestStatus = Field(..., description="Processing status")
-    enriched_contents: list[EnrichedContent] = Field(
-        default_factory=list, description="Enriched content for each platform", alias="enriched_contents"
-    )
-    generated_image: Optional[GeneratedImage] = Field(
-        default=None, description="Generated image if available", alias="generated_image"
-    )
-    failed_platforms: list[PlatformType] = Field(
-        default_factory=list, description="Platforms that failed enrichment", alias="failed_platforms"
-    )
-    version: int = Field(default=1, description="Response version")
-    error_message: Optional[str] = Field(default=None, description="Error message if failed")
-    processed_at: datetime = Field(default_factory=datetime.utcnow)
+    request_id: str = Field(..., alias="request_id")
+    user_id: str = Field(..., alias="user_id")
+    status: RequestStatus = Field(...)
+    enriched_contents: list[EnrichedContent] = Field(default_factory=list, alias="enriched_contents")
+    generated_image: Optional[GeneratedImage] = Field(default=None, alias="generated_image")
+    failed_platforms: list[PlatformType] = Field(default_factory=list, alias="failed_platforms")
+    version: int = Field(default=1)
+    error_message: Optional[str] = Field(default=None, alias="error_message")
+    processed_at: datetime = Field(default_factory=datetime.utcnow, alias="processed_at")
 
     class Config:
+        populate_by_name = True
         use_enum_values = True

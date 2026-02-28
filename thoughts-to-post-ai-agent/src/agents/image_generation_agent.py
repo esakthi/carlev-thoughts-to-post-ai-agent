@@ -2,7 +2,9 @@
 
 import base64
 import logging
+import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Optional
 
 import httpx
@@ -29,31 +31,19 @@ class StableDiffusionGenerator(ImageGenerator):
     """Image generator using Stable Diffusion API (Automatic1111/ComfyUI)."""
 
     def __init__(self, api_url: Optional[str] = None):
-        """Initialize the Stable Diffusion generator.
-
-        Args:
-            api_url: Stable Diffusion API URL (defaults to settings)
-        """
+        """Initialize the Stable Diffusion generator."""
         self.api_url = api_url or settings.stable_diffusion_url
 
     def generate(self, prompt: str) -> GeneratedImage:
-        """Generate an image using Stable Diffusion.
-
-        Args:
-            prompt: The image generation prompt
-
-        Returns:
-            GeneratedImage with base64 encoded image
-        """
+        """Generate an image using Stable Diffusion."""
         logger.info(f"Generating image via Stable Diffusion at {self.api_url}")
         logger.debug(f"SD Prompt: {prompt}")
 
-        # Automatic1111 txt2img endpoint
         endpoint = f"{self.api_url}/sdapi/v1/txt2img"
 
         payload = {
             "prompt": prompt,
-            "negative_prompt": "blurry, low quality, distorted, watermark, text, logo",
+            "negative_prompt": "blurry, low quality, distorted, watermark, text, logo, NSFW, offensive",
             "steps": 30,
             "width": 1024,
             "height": 1024,
@@ -72,11 +62,13 @@ class StableDiffusionGenerator(ImageGenerator):
                 logger.info(f"Stable Diffusion generated image successfully. Base64 length: {len(image_base64)}")
 
                 return GeneratedImage(
+                    id=str(uuid.uuid4()),
                     image_base64=image_base64,
                     image_format="png",
                     prompt_used=prompt,
                     width=1024,
                     height=1024,
+                    created_at=datetime.utcnow()
                 )
 
         except Exception as e:
@@ -88,24 +80,13 @@ class DalleGenerator(ImageGenerator):
     """Image generator using OpenAI DALL-E API."""
 
     def __init__(self, api_key: Optional[str] = None):
-        """Initialize the DALL-E generator.
-
-        Args:
-            api_key: OpenAI API key (defaults to settings)
-        """
+        """Initialize the DALL-E generator."""
         self.api_key = api_key or settings.openai_api_key
         if not self.api_key:
             raise ValueError("OpenAI API key required for DALL-E generator")
 
     def generate(self, prompt: str) -> GeneratedImage:
-        """Generate an image using DALL-E.
-
-        Args:
-            prompt: The image generation prompt
-
-        Returns:
-            GeneratedImage with base64 encoded image
-        """
+        """Generate an image using DALL-E."""
         logger.info("Generating image via OpenAI DALL-E 3")
         logger.debug(f"DALL-E Prompt: {prompt}")
         endpoint = "https://api.openai.com/v1/images/generations"
@@ -134,11 +115,13 @@ class DalleGenerator(ImageGenerator):
                 logger.info(f"DALL-E generated image successfully. Base64 length: {len(image_base64)}")
 
                 return GeneratedImage(
+                    id=str(uuid.uuid4()),
                     image_base64=image_base64,
                     image_format="png",
                     prompt_used=prompt,
                     width=1024,
                     height=1024,
+                    created_at=datetime.utcnow()
                 )
 
         except Exception as e:
@@ -150,25 +133,12 @@ class OllamaGenerator(ImageGenerator):
     """Image generator using Ollama API (experimental)."""
 
     def __init__(self, api_url: Optional[str] = None, model_name: Optional[str] = None):
-        """Initialize the Ollama generator.
-
-        Args:
-            api_url: Ollama API URL (defaults to settings)
-            model_name: Ollama model for image generation
-        """
+        """Initialize the Ollama generator."""
         self.api_url = api_url or settings.ollama_base_url
         self.model_name = model_name or settings.ollama_image_model
 
     def generate(self, prompt: str) -> GeneratedImage:
-        """Generate an image using Ollama.
-
-        Args:
-            prompt: The image generation prompt
-
-        Returns:
-            GeneratedImage with base64 encoded image
-        """
-        # Experimental: Using Ollama's generate endpoint for image models
+        """Generate an image using Ollama."""
         endpoint = f"{self.api_url}/api/generate"
 
         payload = {
@@ -185,45 +155,31 @@ class OllamaGenerator(ImageGenerator):
                 response.raise_for_status()
 
                 result = response.json()
-                logger.debug(f"Ollama response keys: {list(result.keys())}")
-
-                # Experimental image models in Ollama may return the image in different ways
-                # Some return it in a 'response' field, some in an 'images' list
                 image_base64 = None
 
                 if "image" in result:
-                    logger.debug("Found image in 'image' field")
                     image_base64 = result["image"]
                 elif "images" in result and result["images"]:
-                    logger.debug(f"Found {len(result['images'])} images in 'images' list")
                     image_base64 = result["images"][0]
                 elif "response" in result:
                     resp_text = result["response"].strip()
-                    logger.debug(f"Analyzing 'response' field (length: {len(resp_text)})")
-
-                    # Check if it's wrapped in a data URI
                     if "data:image" in resp_text and "base64," in resp_text:
-                        logger.debug("Found data:image URI in response")
                         image_base64 = resp_text.split("base64,")[1].split('"')[0].split("'")[0]
-                    # If the response is likely a base64 string
-                    # Base64 strings should not have spaces and should be long
                     elif len(resp_text) > 1000 and " " not in resp_text:
-                        logger.debug("Response text looks like a direct base64 string")
                         image_base64 = resp_text
 
                 if not image_base64:
-                    logger.warning(
-                        f"Ollama model {self.model_name} did not return recognizable image data. "
-                        "Falling back to placeholder."
-                    )
+                    logger.warning(f"Ollama model {self.model_name} did not return image data.")
                     return PlaceholderGenerator().generate(prompt)
 
                 return GeneratedImage(
+                    id=str(uuid.uuid4()),
                     image_base64=image_base64,
                     image_format="png",
                     prompt_used=prompt,
                     width=1024,
                     height=1024,
+                    created_at=datetime.utcnow()
                 )
 
         except Exception as e:
@@ -235,51 +191,26 @@ class PlaceholderGenerator(ImageGenerator):
     """Placeholder generator when no image service is available."""
 
     def generate(self, prompt: str) -> GeneratedImage:
-        """Return a placeholder image.
-
-        Args:
-            prompt: The image generation prompt (stored but not used)
-
-        Returns:
-            GeneratedImage with a placeholder
-        """
+        """Return a placeholder image."""
         logger.info("Returning 1x1 placeholder image")
-        # Create a simple 1x1 transparent PNG as placeholder
-        # This base64 represents a 1x1 transparent PNG.
-        # LinkedIn may display this as a plain colored block.
-        placeholder_b64 = (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-        )
-
-        logger.warning(
-            "Using 1x1 placeholder image. If you see a plain green block on social media, "
-            "it's likely because the image generator is not configured correctly or the "
-            "selected model (e.g. qwen3-vl) doesn't support image generation."
-        )
+        placeholder_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
         return GeneratedImage(
+            id=str(uuid.uuid4()),
             image_base64=placeholder_b64,
             image_format="png",
             prompt_used=prompt,
             width=1,
             height=1,
+            created_at=datetime.utcnow()
         )
 
 
 class ImageGenerationAgent:
     """Agent for generating images to accompany social media content."""
 
-    def __init__(
-        self,
-        generator_type: Optional[str] = None,
-        model_name: Optional[str] = None,
-    ):
-        """Initialize the image generation agent.
-
-        Args:
-            generator_type: Type of generator ("stable_diffusion", "dalle", "ollama")
-            model_name: Ollama model for prompt generation
-        """
+    def __init__(self, generator_type: Optional[str] = None, model_name: Optional[str] = None):
+        """Initialize the image generation agent."""
         self.generator_type = generator_type or settings.image_generator_type
         self.model_name = model_name or settings.ollama_model
         self._generator: Optional[ImageGenerator] = None
@@ -299,7 +230,7 @@ class ImageGenerationAgent:
                 try:
                     self._generator = DalleGenerator()
                 except ValueError as e:
-                    logger.warning(f"DALL-E unavailable (no API key), using placeholder: {e}")
+                    logger.warning(f"DALL-E unavailable, using placeholder: {e}")
                     self._generator = PlaceholderGenerator()
             elif self.generator_type == "ollama":
                 try:
@@ -308,9 +239,7 @@ class ImageGenerationAgent:
                     logger.warning(f"Ollama image generation unavailable, using placeholder: {e}")
                     self._generator = PlaceholderGenerator()
             else:
-                logger.info(f"Unknown or unspecified generator type '{self.generator_type}', using placeholder")
                 self._generator = PlaceholderGenerator()
-
         return self._generator
 
     def _get_prompt_llm(self) -> ChatOllama:
@@ -323,77 +252,48 @@ class ImageGenerationAgent:
             )
         return self._prompt_llm
 
-    def generate_image_prompt(self, content: EnrichedContent) -> str:
-        """Generate an image prompt based on enriched content.
-
-        Args:
-            content: The enriched social media content
-
-        Returns:
-            An optimized prompt for image generation
-        """
+    def generate_image_prompt(self, content: str, refinement_instructions: Optional[str] = None) -> str:
+        """Generate or refine an image prompt based on content and feedback."""
         llm = self._get_prompt_llm()
 
-        prompt_template = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert at creating image generation prompts for AI art models.
+        system_msg = """You are an expert at creating image generation prompts for AI art models.
 Your task is to create a clear, detailed prompt that will generate a professional, 
 visually appealing image suitable for social media posts.
 
 Guidelines:
 - Focus on the main concept or metaphor in the content
 - Use descriptive visual language
-- Specify style (e.g., "professional photography", "modern illustration", "minimalist design")
+- Specify style (e.g., "professional photography", "modern illustration")
 - Include lighting and mood descriptors
 - Keep the prompt under 200 words
 - Do NOT include text in the image
 - Make it suitable for professional/business content
+- If refinement instructions are provided, incorporate them into the prompt.
 
-Respond with ONLY the image prompt, nothing else."""),
-            ("human", """Create an image generation prompt for the following social media content:
+Respond with ONLY the image prompt, nothing else."""
 
-{content}
+        human_msg = f"Create an image generation prompt for the following social media content:\n\n{content}"
+        if refinement_instructions:
+            human_msg += f"\n\nRefine the prompt with these specific instructions: {refinement_instructions}"
 
-Generate a prompt for a visually compelling image that represents this content."""),
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", system_msg),
+            ("human", human_msg),
         ])
 
         chain = prompt_template | llm | StrOutputParser()
 
         try:
-            image_prompt = chain.invoke({"content": content.body})
-            logger.info(f"Generated image prompt: {image_prompt[:100]}...")
+            image_prompt = chain.invoke({})
+            logger.info(f"Generated/Refined image prompt: {image_prompt[:100]}...")
             return image_prompt
-
         except Exception as e:
             logger.error(f"Error generating image prompt: {e}")
-            # Fallback to a simplified prompt
-            return f"Professional illustration representing: {content.body[:100]}, modern, clean, corporate style"
+            return f"Professional illustration representing: {content[:100]}, modern style"
 
-    def generate_for_content(self, content: EnrichedContent) -> GeneratedImage:
-        """Generate an image based on enriched content.
-
-        Args:
-            content: The enriched social media content
-
-        Returns:
-            GeneratedImage for the content
-        """
+    def generate_for_content(self, content: EnrichedContent, refinement_instructions: Optional[str] = None) -> GeneratedImage:
+        """Generate an image based on enriched content."""
         logger.info(f"Generating image for {content.platform.value} content")
-        # First, generate an optimized prompt
-        image_prompt = self.generate_image_prompt(content)
-
-        # Then generate the image
+        image_prompt = self.generate_image_prompt(content.body, refinement_instructions)
         generator = self._get_generator()
-        logger.info(f"Dispatching to {generator.__class__.__name__}")
         return generator.generate(image_prompt)
-
-    def generate_from_prompt(self, prompt: str) -> GeneratedImage:
-        """Generate an image directly from a prompt.
-
-        Args:
-            prompt: Direct image generation prompt
-
-        Returns:
-            GeneratedImage
-        """
-        generator = self._get_generator()
-        return generator.generate(prompt)

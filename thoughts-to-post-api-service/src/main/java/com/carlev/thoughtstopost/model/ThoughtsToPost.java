@@ -104,6 +104,10 @@ public class ThoughtsToPost {
         private String callToAction;
         private Integer characterCount;
 
+        // Platform-specific images
+        @Builder.Default
+        private List<GeneratedImage> images = new ArrayList<>();
+
         // Posting status tracking
         @Builder.Default
         private PostStatus status = PostStatus.PENDING;
@@ -112,5 +116,26 @@ public class ThoughtsToPost {
         private Integer retryCount = 0;
         private LocalDateTime lastRetryAt;
         private String errorMessage;
+    }
+
+    /**
+     * Represents a generated image.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GeneratedImage {
+        private String id;
+        private String base64Data;
+        private String url; // Data URI or cloud URL
+        private String prompt;
+        private String format;
+        private Integer width;
+        private Integer height;
+        @Builder.Default
+        private boolean selected = false;
+        private String tag; // User-defined tag/position (e.g., "pre-explanation")
+        private LocalDateTime createdAt;
     }
 }

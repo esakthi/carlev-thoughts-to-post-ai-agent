@@ -3,6 +3,7 @@ package com.carlev.thoughtstopost.controller;
 import com.carlev.thoughtstopost.dto.ApproveThoughtRequest;
 import com.carlev.thoughtstopost.dto.CreateThoughtRequest;
 import com.carlev.thoughtstopost.dto.ThoughtResponse;
+import com.carlev.thoughtstopost.model.PlatformType;
 import com.carlev.thoughtstopost.model.PostStatus;
 import com.carlev.thoughtstopost.model.ThoughtsToPostHistory;
 import com.carlev.thoughtstopost.service.ThoughtsService;
@@ -23,18 +24,11 @@ import java.util.List;
 @RequestMapping("/api/thoughts")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*") // TODO: Configure proper CORS for production
+@CrossOrigin(origins = "*")
 public class ThoughtsController {
 
     private final ThoughtsService thoughtsService;
 
-    /**
-     * Create a new thought post.
-     * 
-     * @param request        The create request with thought and platforms
-     * @param authentication Authentication object
-     * @return Created thought response
-     */
     @PostMapping
     public ResponseEntity<ThoughtResponse> createThought(
             @Valid @RequestBody CreateThoughtRequest request,
@@ -45,13 +39,6 @@ public class ThoughtsController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    /**
-     * Get a thought by ID.
-     * 
-     * @param id             The thought ID
-     * @param authentication Authentication object
-     * @return Thought response
-     */
     @GetMapping("/{id}")
     public ResponseEntity<ThoughtResponse> getThought(
             @PathVariable String id,
@@ -62,20 +49,11 @@ public class ThoughtsController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Get all thoughts for a user, optionally filtered by status or platform.
-     * 
-     * @param status         Optional status to filter by
-     * @param notStatus      Optional status to exclude
-     * @param platform       Optional platform to filter by
-     * @param authentication Authentication object
-     * @return List of thought responses
-     */
     @GetMapping
     public ResponseEntity<List<ThoughtResponse>> getUserThoughts(
             @RequestParam(required = false) PostStatus status,
             @RequestParam(required = false) PostStatus notStatus,
-            @RequestParam(required = false) com.carlev.thoughtstopost.model.PlatformType platform,
+            @RequestParam(required = false) PlatformType platform,
             Authentication authentication) {
         String userId = authentication.getName();
         log.info("Getting thoughts for user: {} with filter status: {}, notStatus: {}, platform: {}",
@@ -93,13 +71,6 @@ public class ThoughtsController {
         return ResponseEntity.ok(responses);
     }
 
-    /**
-     * Get history for a thought.
-     * 
-     * @param id             The thought ID
-     * @param authentication Authentication object
-     * @return List of history entries
-     */
     @GetMapping("/{id}/history")
     public ResponseEntity<List<ThoughtsToPostHistory>> getThoughtHistory(
             @PathVariable String id,
@@ -110,14 +81,6 @@ public class ThoughtsController {
         return ResponseEntity.ok(history);
     }
 
-    /**
-     * Approve a thought and post to social media.
-     * 
-     * @param id             The thought ID
-     * @param request        The approval request with comments and choices
-     * @param authentication Authentication object
-     * @return Updated thought response
-     */
     @PostMapping("/{id}/approve")
     public ResponseEntity<ThoughtResponse> approveAndPost(
             @PathVariable String id,
@@ -129,13 +92,6 @@ public class ThoughtsController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Reject a thought.
-     * 
-     * @param id             The thought ID
-     * @param authentication Authentication object
-     * @return Updated thought response
-     */
     @PostMapping("/{id}/reject")
     public ResponseEntity<ThoughtResponse> rejectThought(
             @PathVariable String id,
@@ -146,14 +102,6 @@ public class ThoughtsController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Update enriched content of a thought.
-     *
-     * @param id             The thought ID
-     * @param request        The thought response DTO with updated content
-     * @param authentication Authentication object
-     * @return Updated thought response
-     */
     @PutMapping("/{id}")
     public ResponseEntity<ThoughtResponse> updateThought(
             @PathVariable String id,
@@ -165,14 +113,6 @@ public class ThoughtsController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Resubmit a thought for re-enrichment.
-     *
-     * @param id             The thought ID
-     * @param request        Map containing additionalInstructions
-     * @param authentication Authentication object
-     * @return Updated thought response
-     */
     @PostMapping("/{id}/re-enrich")
     public ResponseEntity<ThoughtResponse> reenrichThought(
             @PathVariable String id,
@@ -185,13 +125,20 @@ public class ThoughtsController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Delete a thought.
-     *
-     * @param id             The thought ID
-     * @param authentication Authentication object
-     * @return No content
-     */
+    @PostMapping("/{id}/refine-image")
+    public ResponseEntity<ThoughtResponse> refineImage(
+            @PathVariable String id,
+            @RequestBody java.util.Map<String, String> request,
+            Authentication authentication) {
+        String userId = authentication.getName();
+        String instructions = request.get("refinementInstructions");
+        String platformStr = request.get("platform");
+        PlatformType platform = platformStr != null ? PlatformType.fromString(platformStr) : null;
+        log.info("Refining image for thought: {} for platform: {} by user: {}", id, platform, userId);
+        ThoughtResponse response = thoughtsService.refineImage(id, instructions, platform, userId);
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteThought(
             @PathVariable String id,
@@ -202,13 +149,6 @@ public class ThoughtsController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Repost an already posted thought.
-     *
-     * @param id             The thought ID
-     * @param authentication Authentication object
-     * @return Reset thought response
-     */
     @PostMapping("/{id}/repost")
     public ResponseEntity<ThoughtResponse> repostThought(
             @PathVariable String id,
@@ -219,9 +159,6 @@ public class ThoughtsController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Health check endpoint.
-     */
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("OK");

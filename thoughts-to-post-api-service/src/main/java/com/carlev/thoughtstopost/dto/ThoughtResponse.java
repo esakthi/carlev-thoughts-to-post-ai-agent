@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Response DTO for thought post data.
@@ -27,7 +28,7 @@ public class ThoughtResponse {
     private String additionalInstructions;
     private List<PlatformSelectionDto> platformSelections;
     private List<EnrichedContentDto> enrichedContents;
-    private String generatedImageUrl;
+    private String generatedImageUrl; // Legacy
     private List<PlatformType> selectedPlatforms;
     private PostStatus status;
     private Long version;
@@ -66,8 +67,28 @@ public class ThoughtResponse {
         private List<String> hashtags;
         private String callToAction;
         private Integer characterCount;
+        private List<GeneratedImageDto> images;
         private PostStatus status;
         private String errorMessage;
+    }
+
+    /**
+     * DTO for generated image.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GeneratedImageDto {
+        private String id;
+        private String url;
+        private String prompt;
+        private String format;
+        private Integer width;
+        private Integer height;
+        private boolean selected;
+        private String tag;
+        private LocalDateTime createdAt;
     }
 
     /**
@@ -81,7 +102,7 @@ public class ThoughtResponse {
                                 .presetId(ps.getPresetId())
                                 .additionalContext(ps.getAdditionalContext())
                                 .build())
-                        .toList()
+                        .collect(Collectors.toList())
                 : List.of();
 
         List<EnrichedContentDto> enrichedDtos = entity.getEnrichedContents() != null
@@ -95,8 +116,21 @@ public class ThoughtResponse {
                                 .characterCount(ec.getCharacterCount())
                                 .status(ec.getStatus())
                                 .errorMessage(ec.getErrorMessage())
+                                .images(ec.getImages() != null ? ec.getImages().stream()
+                                        .map(img -> GeneratedImageDto.builder()
+                                                .id(img.getId())
+                                                .url(img.getUrl())
+                                                .prompt(img.getPrompt())
+                                                .format(img.getFormat())
+                                                .width(img.getWidth())
+                                                .height(img.getHeight())
+                                                .selected(img.isSelected())
+                                                .tag(img.getTag())
+                                                .createdAt(img.getCreatedAt())
+                                                .build())
+                                        .collect(Collectors.toList()) : List.of())
                                 .build())
-                        .toList()
+                        .collect(Collectors.toList())
                 : List.of();
 
         return ThoughtResponse.builder()
