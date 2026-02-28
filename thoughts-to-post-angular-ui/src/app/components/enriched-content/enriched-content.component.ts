@@ -26,7 +26,7 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest, PlatformType, 
             </div>
           } @else {
             @if (canRepost()) {
-              <button class="btn btn-primary btn-sm" (click)="repost.emit()">🔄 Repost</button>
+              <button class="btn btn-primary btn-sm" (click)="onRepostClick()">🔄 Repost</button>
             }
             <button class="btn btn-danger btn-sm" (click)="onDelete()">🗑️ Delete</button>
           }
@@ -150,7 +150,7 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest, PlatformType, 
                 <button class="btn btn-primary" (click)="nextStep()">
                   Next: Review Images →
                 </button>
-                <button class="btn btn-secondary" (click)="reject.emit()">
+                <button class="btn btn-secondary" (click)="onRejectClick()">
                   ✕ Reject
                 </button>
               }
@@ -334,10 +334,18 @@ export class EnrichedContentComponent {
 
     PLATFORM_CONFIG = PLATFORM_CONFIG;
 
-    nextStep() { this.currentStep.set(2); }
-    prevStep() { this.currentStep.set(1); }
+    nextStep() {
+        console.log('[WIZARD] Decision: Moving to Step 2 (Image Review)');
+        this.currentStep.set(2);
+    }
+    prevStep() {
+        console.log('[WIZARD] Decision: Moving back to Step 1 (Text Review)');
+        this.currentStep.set(1);
+    }
 
     onApprove() {
+        console.log('[APPROVE] Decision: User clicked Approve & Post');
+        console.log('[APPROVE] Choices: postText=', this.postText, 'postImage=', this.postImage);
         this.approve.emit({
             textContentComments: this.textContentComments,
             imageContentComments: this.imageContentComments,
@@ -347,32 +355,59 @@ export class EnrichedContentComponent {
     }
 
     toggleEdit() {
-        if (!this.isEditing()) {
+        const newState = !this.isEditing();
+        console.log('[EDIT] Decision: Toggling edit mode to', newState);
+        if (newState) {
+            console.log('[EDIT] Logic: Creating deep copy of enriched contents for editing');
             this.editableEnrichedContents = JSON.parse(JSON.stringify(this.thought.enrichedContents));
+        } else {
+            console.log('[EDIT] Logic: Discarding unsaved edits');
         }
-        this.isEditing.set(!this.isEditing());
+        this.isEditing.set(newState);
     }
 
     saveEdits() {
+        console.log('[EDIT] Decision: Saving manual text edits to backend');
         const updatedThought = { ...this.thought, enrichedContents: this.editableEnrichedContents };
         this.updateContent.emit(updatedThought);
         this.isEditing.set(false);
     }
 
-    onResubmit() { this.reenrich.emit(this.textContentComments); }
+    onResubmit() {
+        console.log('[RE-ENRICH] Decision: Requesting text re-enrichment with comments:', this.textContentComments);
+        this.reenrich.emit(this.textContentComments);
+    }
 
     onRefineImage(platform: PlatformType) {
         const instructions = this.platformRefinements[platform];
+        console.log('[REFINE IMAGE] Decision: Requesting image refinement for', platform);
         if (instructions) {
+            console.log('[REFINE IMAGE] Logic: Emitting refineImage event with instructions:', instructions);
             this.refineImage.emit({ platform, instructions });
             this.platformRefinements[platform] = '';
+        } else {
+            console.warn('[REFINE IMAGE] Decision: Blocked - Empty instructions');
         }
     }
 
     onDelete() {
+        console.log('[DELETE] Decision: User requested deletion of thought', this.thought.id);
         if (confirm('Are you sure you want to delete this thought?')) {
+            console.log('[DELETE] Logic: User confirmed. Emitting delete event.');
             this.delete.emit();
+        } else {
+            console.log('[DELETE] Logic: User canceled deletion.');
         }
+    }
+
+    onRepostClick() {
+        console.log('[REPOST] Decision: User requested repost of thought', this.thought.id);
+        this.repost.emit();
+    }
+
+    onRejectClick() {
+        console.log('[REJECT] Decision: User rejected enriched content');
+        this.reject.emit();
     }
 
     sanitizeUrl(url: string): SafeUrl {
@@ -380,35 +415,54 @@ export class EnrichedContentComponent {
     }
 
     toggleImageSelection(content: EnrichedContent, image: GeneratedImage) {
-        image.selected = !image.selected;
+        const newState = !image.selected;
+        console.log('[IMAGE SELECTION] Decision: Toggling image', image.id, 'on platform', content.platform, 'to selected=', newState);
+        image.selected = newState;
+        console.log('[IMAGE SELECTION] Logic: Syncing selection state to backend');
         this.updateContent.emit(this.thought);
     }
 
     openPreview(image: GeneratedImage) {
+        console.log('[PREVIEW] Decision: Opening full-size preview for image', image.id);
         this.selectedPreviewImage = image;
         this.showImageModal.set(true);
     }
 
     hasSelectedImages(): boolean {
-        return this.thought.enrichedContents.some(c => c.images?.some(img => img.selected));
+        const result = this.thought.enrichedContents.some(c => c.images?.some(img => img.selected));
+        console.debug('[UI STATE] Checking if any images are selected:', result);
+        return result;
     }
 
     canEdit(): boolean {
-        return this.thought.status !== 'POSTED' && this.thought.status !== 'POSTING' && this.currentStep() === 1;
+        const result = this.thought.status !== 'POSTED' && this.thought.status !== 'POSTING' && this.currentStep() === 1;
+        console.debug('[UI STATE] Evaluation canEdit:', result, '(Status:', this.thought.status, 'Step:', this.currentStep(), ')');
+        return result;
     }
 
     getMissingPlatforms(): PlatformType[] {
-        if (!this.thought.selectedPlatforms) return [];
+        if (!this.thought.selectedPlatforms) {
+            console.debug('[UI STATE] No platforms selected for this thought.');
+            return [];
+        }
         const enrichedPlatforms = this.thought.enrichedContents?.map(ec => ec.platform) || [];
-        return this.thought.selectedPlatforms.filter(p => !enrichedPlatforms.includes(p));
+        const missing = this.thought.selectedPlatforms.filter(p => !enrichedPlatforms.includes(p));
+        if (missing.length > 0) {
+            console.log('[UI STATE] Logic: Found missing enriched platforms:', missing);
+        }
+        return missing;
     }
 
     canResubmit(): boolean {
-        return ['ENRICHED', 'FAILED', 'REJECTED', 'PARTIALLY_COMPLETED'].includes(this.thought.status);
+        const result = ['ENRICHED', 'FAILED', 'REJECTED', 'PARTIALLY_COMPLETED'].includes(this.thought.status);
+        console.debug('[UI STATE] Evaluation canResubmit:', result, 'for status', this.thought.status);
+        return result;
     }
 
     canRepost(): boolean {
-        return ['POSTED', 'REJECTED', 'FAILED', 'PARTIALLY_COMPLETED'].includes(this.thought.status);
+        const result = ['POSTED', 'REJECTED', 'FAILED', 'PARTIALLY_COMPLETED'].includes(this.thought.status);
+        console.debug('[UI STATE] Evaluation canRepost:', result, 'for status', this.thought.status);
+        return result;
     }
 
     getStatusLabel(status: string): string {
@@ -423,6 +477,8 @@ export class EnrichedContentComponent {
             'REJECTED': '✕ Rejected',
             'PARTIALLY_COMPLETED': '⚠️ Partially Completed'
         };
-        return labels[status] || status;
+        const label = labels[status] || status;
+        console.debug('[UI STATE] Resolved status label for', status, '->', label);
+        return label;
     }
 }

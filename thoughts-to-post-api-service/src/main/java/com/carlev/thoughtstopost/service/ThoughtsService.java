@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Service for managing thought posts.
+ * Service for managing thought posts with verbose logging.
  */
 @Service
 @RequiredArgsConstructor
@@ -43,17 +43,15 @@ public class ThoughtsService {
     private final ThoughtCategoryRepository categoryRepository;
     private final PlatformPromptRepository platformPromptRepository;
 
-    /**
-     * Create a new thought post and send it to the AI agent for enrichment.
-     */
     @Transactional
     public ThoughtResponse createThought(CreateThoughtRequest request, String userId) {
-        log.info("Creating new thought for user: {}", userId);
+        log.info("[CREATE THOUGHT] Decision: Starting creation flow for user: {}", userId);
 
         List<ThoughtsToPost.PlatformSelection> selections = new ArrayList<>();
         List<PlatformType> selectedPlatforms = new ArrayList<>();
 
         if (request.getPlatformConfigs() != null && !request.getPlatformConfigs().isEmpty()) {
+            log.info("[CREATE THOUGHT] Decision: Using platform configurations");
             for (CreateThoughtRequest.PlatformConfig config : request.getPlatformConfigs()) {
                 selections.add(ThoughtsToPost.PlatformSelection.builder()
                         .platform(config.getPlatform())
@@ -63,6 +61,7 @@ public class ThoughtsService {
                 selectedPlatforms.add(config.getPlatform());
             }
         } else if (request.getPlatforms() != null) {
+            log.info("[CREATE THOUGHT] Decision: Using platform list fallback");
             for (PlatformType platform : request.getPlatforms()) {
                 selections.add(ThoughtsToPost.PlatformSelection.builder()
                         .platform(platform)
@@ -84,44 +83,49 @@ public class ThoughtsService {
 
         thought = thoughtsRepository.save(thought);
         createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.CREATE, userId);
-
         sendToAiAgent(thought, request.getAdditionalInstructions(), null, null);
 
-        log.info("Created thought with ID: {}", thought.getId());
+        log.info("[CREATE THOUGHT] Success: Created thought {}", thought.getId());
         return ThoughtResponse.fromEntity(thought);
     }
 
     public ThoughtResponse getThought(String id, String userId) {
+        log.info("[GET THOUGHT] Decision: Fetching thought {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
         return ThoughtResponse.fromEntity(thought);
     }
 
     public List<ThoughtResponse> getUserThoughts(String userId) {
+        log.info("[LIST THOUGHTS] Decision: Listing all thoughts for user {}", userId);
         return thoughtsRepository.findByUserId(userId).stream()
                 .map(ThoughtResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
     public List<ThoughtResponse> getUserThoughtsByPlatform(String userId, PlatformType platform) {
+        log.info("[LIST THOUGHTS] Decision: Filtering by platform {}", platform);
         return thoughtsRepository.findByUserIdAndSelectedPlatformsContains(userId, platform).stream()
                 .map(ThoughtResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
     public List<ThoughtResponse> getUserThoughtsByStatus(String userId, PostStatus status) {
+        log.info("[LIST THOUGHTS] Decision: Filtering by status {}", status);
         return thoughtsRepository.findByUserIdAndStatus(userId, status).stream()
                 .map(ThoughtResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
     public List<ThoughtResponse> getUserThoughtsByStatusNot(String userId, PostStatus status) {
+        log.info("[LIST THOUGHTS] Decision: Filtering excluding status {}", status);
         return thoughtsRepository.findByUserIdAndStatusNot(userId, status).stream()
                 .map(ThoughtResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
     public List<ThoughtsToPostHistory> getThoughtHistory(String thoughtId, String userId) {
+        log.info("[HISTORY] Decision: Fetching history for thought {}", thoughtId);
         thoughtsRepository.findByIdAndUserId(thoughtId, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + thoughtId));
         return historyRepository.findByThoughtsToPostIdOrderByVersionDesc(thoughtId);
@@ -129,10 +133,12 @@ public class ThoughtsService {
 
     @Transactional
     public ThoughtResponse approveAndPost(String id, com.carlev.thoughtstopost.dto.ApproveThoughtRequest request, String userId) {
+        log.info("[APPROVE] Decision: Approving thought {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() != PostStatus.ENRICHED && thought.getStatus() != PostStatus.FAILED && thought.getStatus() != PostStatus.PARTIALLY_COMPLETED) {
+            log.error("[APPROVE] Decision: REJECTED - Invalid status {}", thought.getStatus());
             throw new RuntimeException("Thought is not ready for approval. Status: " + thought.getStatus());
         }
 
@@ -145,19 +151,18 @@ public class ThoughtsService {
 
         thought = thoughtsRepository.save(thought);
         createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.APPROVE, userId);
-
         attemptPosting(id);
 
         return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(thought));
     }
 
     public void attemptPosting(String id) {
+        log.info("[POST] Decision: Attempting to post thought {}", id);
         ThoughtsToPost thought = thoughtsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() != PostStatus.APPROVED && thought.getStatus() != PostStatus.POSTING
                 && thought.getStatus() != PostStatus.FAILED) {
-            log.warn("Thought {} is not in a postable state: {}", id, thought.getStatus());
             return;
         }
 
@@ -166,6 +171,7 @@ public class ThoughtsService {
                     .allMatch(c -> c.getStatus() == PostStatus.POSTED);
 
             if (allPosted) {
+                log.info("[POST] Decision: Already fully posted.");
                 thought.setStatus(PostStatus.POSTED);
                 thoughtsRepository.save(thought);
                 return;
@@ -173,7 +179,6 @@ public class ThoughtsService {
 
             thought.setStatus(PostStatus.POSTING);
             thoughtsRepository.save(thought);
-
             socialMediaService.postToSelectedPlatforms(thought);
 
             thought = thoughtsRepository.findById(id).orElse(thought);
@@ -181,23 +186,26 @@ public class ThoughtsService {
                     .allMatch(c -> c.getStatus() == PostStatus.POSTED);
 
             if (fullyPosted) {
+                log.info("[POST] Final Decision: SUCCESS");
                 thought.setStatus(PostStatus.POSTED);
                 thought = thoughtsRepository.save(thought);
                 createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.POST, "system");
             } else {
+                log.warn("[POST] Final Decision: PARTIAL/FAILED");
                 thought.setStatus(PostStatus.FAILED);
                 thoughtsRepository.save(thought);
             }
         } catch (Exception e) {
-            log.error("Failed post attempt for thought {}: {}", id, e.getMessage());
+            log.error("[POST] Error: {}", e.getMessage());
             thought.setStatus(PostStatus.FAILED);
-            thought.setErrorMessage("Post attempt failed: " + e.getMessage());
+            thought.setErrorMessage("Post failed: " + e.getMessage());
             thoughtsRepository.save(thought);
         }
     }
 
     @Transactional
     public ThoughtResponse rejectThought(String id, String userId) {
+        log.info("[REJECT] Decision: Rejecting thought {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
@@ -210,11 +218,12 @@ public class ThoughtsService {
 
     @Transactional
     public ThoughtResponse updateEnrichedContent(String id, ThoughtResponse request, String userId) {
+        log.info("[UPDATE] Decision: Manually updating thought {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         if (thought.getStatus() == PostStatus.POSTED) {
-            throw new RuntimeException("Cannot edit content after it has been posted.");
+            throw new RuntimeException("Cannot edit after posted.");
         }
 
         if (request.getEnrichedContents() != null) {
@@ -232,7 +241,6 @@ public class ThoughtsService {
                         existing.setCallToAction(dto.getCallToAction());
                         existing.setCharacterCount(dto.getCharacterCount());
 
-                        // Update selected status of images
                         if (dto.getImages() != null) {
                             for (ThoughtResponse.GeneratedImageDto imgDto : dto.getImages()) {
                                 existing.getImages().stream()
@@ -244,7 +252,6 @@ public class ThoughtsService {
                                         });
                             }
                         }
-
                         return existing;
                     })
                     .collect(Collectors.toList());
@@ -252,50 +259,42 @@ public class ThoughtsService {
         }
 
         thought.setUpdatedBy(userId);
-        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
-        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
-
-        return ThoughtResponse.fromEntity(savedThought);
+        ThoughtsToPost saved = thoughtsRepository.save(thought);
+        createHistoryEntry(saved, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+        return ThoughtResponse.fromEntity(saved);
     }
 
     @Transactional
     public ThoughtResponse reenrichThought(String id, String additionalInstructions, String userId) {
+        log.info("[RE-ENRICH] Decision: Text re-enrichment for {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
-        if (thought.getStatus() == PostStatus.POSTED) {
-            throw new RuntimeException("Cannot re-enrich content after it has been posted.");
-        }
-
         thought.setUpdatedBy(userId);
-        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
-        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+        ThoughtsToPost saved = thoughtsRepository.save(thought);
+        createHistoryEntry(saved, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+        sendToAiAgent(saved, additionalInstructions, null, null);
 
-        sendToAiAgent(savedThought, additionalInstructions, null, null);
-
-        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(savedThought));
+        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(saved));
     }
 
     @Transactional
     public ThoughtResponse refineImage(String id, String refinementInstructions, PlatformType platform, String userId) {
+        log.info("[REFINE IMAGE] Decision: Image refinement for {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
-        if (thought.getStatus() == PostStatus.POSTED) {
-            throw new RuntimeException("Cannot refine image after it has been posted.");
-        }
-
         thought.setUpdatedBy(userId);
-        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
-        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+        ThoughtsToPost saved = thoughtsRepository.save(thought);
+        createHistoryEntry(saved, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+        sendToAiAgent(saved, null, refinementInstructions, platform);
 
-        sendToAiAgent(savedThought, null, refinementInstructions, platform);
-
-        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(savedThought));
+        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(saved));
     }
 
     @Transactional
     public void deleteThought(String id, String userId) {
+        log.info("[DELETE] Decision: Deleting thought {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
         createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.DELETE, userId);
@@ -304,33 +303,31 @@ public class ThoughtsService {
 
     @Transactional
     public ThoughtResponse repostThought(String id, String userId) {
+        log.info("[REPOST] Decision: Reposting thought {}", id);
         ThoughtsToPost thought = thoughtsRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + id));
 
         thought.setStatus(PostStatus.PENDING);
         thought.setEnrichedContents(new ArrayList<>());
-        thought.setGeneratedImageUrl(null);
-        thought.setGeneratedImageBase64(null);
         thought.setErrorMessage(null);
         thought.setUpdatedBy(userId);
 
-        ThoughtsToPost savedThought = thoughtsRepository.save(thought);
-        createHistoryEntry(savedThought, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+        ThoughtsToPost saved = thoughtsRepository.save(thought);
+        createHistoryEntry(saved, ThoughtsToPostHistory.ActionType.UPDATE, userId);
+        sendToAiAgent(saved, "Reposting.", null, null);
 
-        sendToAiAgent(savedThought, "Reposting this thought.", null, null);
-
-        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(savedThought));
+        return ThoughtResponse.fromEntity(thoughtsRepository.findById(id).orElse(saved));
     }
 
     @Transactional
     public void handleAgentResponse(ThoughtResponseMessage message) {
-        log.info("Handling AI agent response for request: {} with status: {}", message.getRequestId(), message.getStatus());
-
+        log.info("[KAFKA RESPONSE] Decision: Processing agent response for {}", message.getRequestId());
         ThoughtsToPost thought = thoughtsRepository.findById(message.getRequestId())
                 .orElseThrow(() -> new RuntimeException("Thought not found: " + message.getRequestId()));
 
         if (message.getEnrichedContents() != null) {
             for (ThoughtResponseMessage.EnrichedContentMessage ecMsg : message.getEnrichedContents()) {
+                log.info("[KAFKA RESPONSE] Logic: Merging platform {}", ecMsg.getPlatform());
                 ThoughtsToPost.EnrichedContent content = thought.getEnrichedContents().stream()
                         .filter(existing -> existing.getPlatform() == ecMsg.getPlatform())
                         .findFirst()
@@ -355,20 +352,19 @@ public class ThoughtsService {
 
                 if (ecMsg.getImages() != null) {
                     for (ThoughtResponseMessage.GeneratedImageMessage imgMsg : ecMsg.getImages()) {
-                        boolean exists = content.getImages().stream().anyMatch(i -> i.getId().equals(imgMsg.getId()));
-                        if (!exists) {
-                            String dataUri = "data:image/" + imgMsg.getImageFormat() + ";base64," + imgMsg.getImageBase64();
+                        if (content.getImages().stream().noneMatch(i -> i.getId().equals(imgMsg.getId()))) {
+                            log.info("[KAFKA RESPONSE] Logic: Adding image {}", imgMsg.getId());
                             content.getImages().add(ThoughtsToPost.GeneratedImage.builder()
                                     .id(imgMsg.getId())
                                     .base64Data(imgMsg.getImageBase64())
-                                    .url(dataUri)
+                                    .url("data:image/" + imgMsg.getImageFormat() + ";base64," + imgMsg.getImageBase64())
                                     .prompt(imgMsg.getPromptUsed())
                                     .format(imgMsg.getImageFormat())
                                     .width(imgMsg.getWidth())
                                     .height(imgMsg.getHeight())
                                     .tag(imgMsg.getTag())
                                     .createdAt(imgMsg.getCreatedAt() != null ? imgMsg.getCreatedAt() : LocalDateTime.now())
-                                    .selected(content.getImages().isEmpty()) // Select first by default
+                                    .selected(content.getImages().isEmpty())
                                     .build());
                         }
                     }
@@ -377,11 +373,10 @@ public class ThoughtsService {
         }
 
         String incomingStatus = message.getStatus().toLowerCase();
-        if ("completed".equals(incomingStatus)) {
-            thought.setStatus(PostStatus.ENRICHED);
-        } else if ("in_progress".equals(incomingStatus)) {
-            thought.setStatus(PostStatus.PROCESSING);
-        } else if ("partially_completed".equals(incomingStatus)) {
+        log.info("[KAFKA RESPONSE] Decision: Agent status is '{}'", incomingStatus);
+        if ("completed".equals(incomingStatus)) thought.setStatus(PostStatus.ENRICHED);
+        else if ("in_progress".equals(incomingStatus)) thought.setStatus(PostStatus.PROCESSING);
+        else if ("partially_completed".equals(incomingStatus)) {
             thought.setStatus(PostStatus.PARTIALLY_COMPLETED);
             thought.setErrorMessage(message.getErrorMessage());
         } else {
@@ -389,48 +384,30 @@ public class ThoughtsService {
             thought.setErrorMessage(message.getErrorMessage());
         }
 
-        thought = thoughtsRepository.save(thought);
+        thoughtsRepository.save(thought);
         createHistoryEntry(thought, ThoughtsToPostHistory.ActionType.STATUS_CHANGE, "system");
     }
 
     private void sendToAiAgent(ThoughtsToPost thought, String additionalInstructions, String imageRefinementInstructions, PlatformType targetPlatform) {
-        String categoryId = thought.getCategoryId();
-        ThoughtCategory category = null;
-        if (categoryId != null) {
-            category = categoryRepository.findById(categoryId).orElse(null);
-        }
-        if (category == null) {
-            category = categoryRepository.findByThoughtCategory("Default").orElse(null);
-        }
+        log.info("[KAFKA OUTBOUND] Decision: Preparing Kafka request for {}", thought.getId());
+        ThoughtCategory category = thought.getCategoryId() != null ? categoryRepository.findById(thought.getCategoryId()).orElse(null) : null;
+        if (category == null) category = categoryRepository.findByThoughtCategory("Default").orElse(null);
 
         List<ThoughtRequestMessage.PlatformConfiguration> configurations = new ArrayList<>();
         Map<PlatformType, String> legacyPlatformPrompts = new HashMap<>();
 
         for (ThoughtsToPost.PlatformSelection selection : thought.getPlatformSelections()) {
-            if (targetPlatform != null && selection.getPlatform() != targetPlatform) {
-                continue;
-            }
+            if (targetPlatform != null && selection.getPlatform() != targetPlatform) continue;
 
             String promptText = null;
-            if (selection.getPresetId() != null) {
-                promptText = platformPromptRepository.findById(selection.getPresetId())
-                        .map(PlatformPrompt::getPromptText)
-                        .orElse(null);
-            }
-
-            if (promptText == null) {
-                promptText = platformPromptRepository.findAllByPlatform(selection.getPlatform()).stream()
-                        .findFirst()
-                        .map(PlatformPrompt::getPromptText)
-                        .orElse("");
-            }
+            if (selection.getPresetId() != null) promptText = platformPromptRepository.findById(selection.getPresetId()).map(PlatformPrompt::getPromptText).orElse(null);
+            if (promptText == null) promptText = platformPromptRepository.findAllByPlatform(selection.getPlatform()).stream().findFirst().map(PlatformPrompt::getPromptText).orElse("");
 
             configurations.add(ThoughtRequestMessage.PlatformConfiguration.builder()
                     .platform(selection.getPlatform())
                     .prompt(promptText)
                     .additionalContext(selection.getAdditionalContext())
                     .build());
-
             legacyPlatformPrompts.put(selection.getPlatform(), promptText);
         }
 
@@ -456,7 +433,6 @@ public class ThoughtsService {
     }
 
     private void createHistoryEntry(ThoughtsToPost thought, ThoughtsToPostHistory.ActionType actionType, String performedBy) {
-        ThoughtsToPostHistory history = ThoughtsToPostHistory.fromThoughtsToPost(thought, actionType, performedBy);
-        historyRepository.save(history);
+        historyRepository.save(ThoughtsToPostHistory.fromThoughtsToPost(thought, actionType, performedBy));
     }
 }
