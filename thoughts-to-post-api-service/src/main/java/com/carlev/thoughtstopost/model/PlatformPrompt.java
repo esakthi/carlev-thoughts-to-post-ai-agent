@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 public class PlatformPrompt {
     @Id
     private String id;
+    private String name;
+    private String description;
     private PlatformType platform;
     private String promptText;
 

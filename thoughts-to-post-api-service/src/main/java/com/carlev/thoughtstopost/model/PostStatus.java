@@ -11,5 +11,6 @@ public enum PostStatus {
     POSTING, // Currently being posted to social media
     POSTED, // Successfully posted
     FAILED, // Processing or posting failed
-    REJECTED // User rejected the enriched content
+    REJECTED, // User rejected the enriched content
+    PARTIALLY_COMPLETED // Some platforms enriched, others failed
 }

@@ -112,10 +112,17 @@ class ContentEnrichmentAgent:
             logger.debug(f"Adding category context: {request.search_description[:50]}...")
             system_prompt += f"\n\nCategory Context: {request.search_description}"
 
-        # Use platform-specific prompt from request, fallback to hardcoded
-        platform_prompt = request.platform_prompts.get(platform)
-        if platform_prompt:
-            logger.debug(f"Using dynamic platform prompt for {platform.value}")
+        # Try to find platform-specific configuration
+        config = next((c for c in request.platform_configurations if c.platform == platform), None)
+
+        # Use platform-specific prompt from config, fallback to legacy, then hardcoded
+        platform_prompt = None
+        if config and config.prompt:
+            platform_prompt = config.prompt
+            logger.debug(f"Using dynamic platform prompt from configuration for {platform.value}")
+        elif request.platform_prompts.get(platform):
+            platform_prompt = request.platform_prompts.get(platform)
+            logger.debug(f"Using legacy platform prompt for {platform.value}")
         else:
             logger.debug(f"Using hardcoded default platform prompt for {platform.value}")
             platform_prompt = PLATFORM_PROMPTS.get(platform, PLATFORM_PROMPTS[PlatformType.LINKEDIN])
@@ -172,6 +179,13 @@ class ContentEnrichmentAgent:
         if request.additional_instructions:
             logger.debug(f"Adding additional instructions: {request.additional_instructions}")
             input_text += f"\n\nAdditional instructions: {request.additional_instructions}"
+
+        # Use additional context from config if not provided explicitly
+        if not additional_context:
+            config = next((c for c in request.platform_configurations if c.platform == platform), None)
+            if config and config.additional_context:
+                additional_context = config.additional_context
+
         if additional_context:
             logger.debug(f"Adding additional context: {additional_context}")
             input_text += f"\n\nContext: {additional_context}"

@@ -58,7 +58,10 @@ public class AdminController {
 
     // Platform Prompts
     @GetMapping("/platform-prompts")
-    public List<PlatformPrompt> getAllPlatformPrompts() {
+    public List<PlatformPrompt> getAllPlatformPrompts(@RequestParam(required = false) PlatformType platform) {
+        if (platform != null) {
+            return platformPromptRepository.findAllByPlatform(platform);
+        }
         return platformPromptRepository.findAll();
     }
 
@@ -72,9 +75,21 @@ public class AdminController {
     public ResponseEntity<PlatformPrompt> updatePlatformPrompt(@PathVariable String id, @RequestBody PlatformPrompt promptDetails) {
         return platformPromptRepository.findById(id)
                 .map(prompt -> {
+                    prompt.setName(promptDetails.getName());
+                    prompt.setDescription(promptDetails.getDescription());
                     prompt.setPlatform(promptDetails.getPlatform());
                     prompt.setPromptText(promptDetails.getPromptText());
                     return ResponseEntity.ok(platformPromptRepository.save(prompt));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/platform-prompts/{id}")
+    public ResponseEntity<Void> deletePlatformPrompt(@PathVariable String id) {
+        return platformPromptRepository.findById(id)
+                .map(prompt -> {
+                    platformPromptRepository.delete(prompt);
+                    return ResponseEntity.ok().<Void>build();
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

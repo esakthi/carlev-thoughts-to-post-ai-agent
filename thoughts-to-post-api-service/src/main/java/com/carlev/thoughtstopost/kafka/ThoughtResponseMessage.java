@@ -28,13 +28,16 @@ public class ThoughtResponseMessage {
     @JsonProperty("user_id") // Map from snake_case to camelCase
     private String userId;
     
-    private String status; // "completed" or "failed"
+    private String status; // "in_progress", "completed", "partially_completed", or "failed"
     
     @JsonProperty("enriched_contents") // Map from snake_case to camelCase
     private List<EnrichedContentMessage> enrichedContents;
     
     @JsonProperty("generated_image") // Map from snake_case to camelCase
     private GeneratedImageMessage generatedImage;
+
+    @JsonProperty("failed_platforms")
+    private List<PlatformType> failedPlatforms;
     
     private Integer version;
     

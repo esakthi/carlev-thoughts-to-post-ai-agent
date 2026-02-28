@@ -24,6 +24,8 @@ public class ThoughtResponse {
     private String userId;
     private String categoryId;
     private String originalThought;
+    private String additionalInstructions;
+    private List<PlatformSelectionDto> platformSelections;
     private List<EnrichedContentDto> enrichedContents;
     private String generatedImageUrl;
     private List<PlatformType> selectedPlatforms;
@@ -36,6 +38,19 @@ public class ThoughtResponse {
     private String imageContentComments;
     private boolean postText;
     private boolean postImage;
+
+    /**
+     * DTO for platform selection.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PlatformSelectionDto {
+        private PlatformType platform;
+        private String presetId;
+        private String additionalContext;
+    }
 
     /**
      * DTO for enriched content.
@@ -51,12 +66,24 @@ public class ThoughtResponse {
         private List<String> hashtags;
         private String callToAction;
         private Integer characterCount;
+        private PostStatus status;
+        private String errorMessage;
     }
 
     /**
      * Convert from entity to DTO.
      */
     public static ThoughtResponse fromEntity(ThoughtsToPost entity) {
+        List<PlatformSelectionDto> selectionDtos = entity.getPlatformSelections() != null
+                ? entity.getPlatformSelections().stream()
+                        .map(ps -> PlatformSelectionDto.builder()
+                                .platform(ps.getPlatform())
+                                .presetId(ps.getPresetId())
+                                .additionalContext(ps.getAdditionalContext())
+                                .build())
+                        .toList()
+                : List.of();
+
         List<EnrichedContentDto> enrichedDtos = entity.getEnrichedContents() != null
                 ? entity.getEnrichedContents().stream()
                         .map(ec -> EnrichedContentDto.builder()
@@ -66,6 +93,8 @@ public class ThoughtResponse {
                                 .hashtags(ec.getHashtags())
                                 .callToAction(ec.getCallToAction())
                                 .characterCount(ec.getCharacterCount())
+                                .status(ec.getStatus())
+                                .errorMessage(ec.getErrorMessage())
                                 .build())
                         .toList()
                 : List.of();
@@ -75,6 +104,8 @@ public class ThoughtResponse {
                 .userId(entity.getUserId())
                 .categoryId(entity.getCategoryId())
                 .originalThought(entity.getOriginalThought())
+                .additionalInstructions(entity.getAdditionalInstructions())
+                .platformSelections(selectionDtos)
                 .enrichedContents(enrichedDtos)
                 .generatedImageUrl(entity.getGeneratedImageUrl())
                 .selectedPlatforms(entity.getSelectedPlatforms())

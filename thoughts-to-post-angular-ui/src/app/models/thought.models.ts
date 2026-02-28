@@ -12,7 +12,8 @@ export type PostStatus =
     | 'POSTING'
     | 'POSTED'
     | 'FAILED'
-    | 'REJECTED';
+    | 'REJECTED'
+    | 'PARTIALLY_COMPLETED';
 
 export interface EnrichedContent {
     platform: PlatformType;
@@ -31,6 +32,8 @@ export interface ThoughtResponse {
     enrichedContents: EnrichedContent[];
     generatedImageUrl?: string;
     selectedPlatforms: PlatformType[];
+    additionalInstructions?: string;
+    platformSelections?: PlatformSelection[];
     status: PostStatus;
     version: number;
     createdAt: string;
@@ -42,11 +45,18 @@ export interface ThoughtResponse {
     postImage: boolean;
 }
 
+export interface PlatformSelection {
+    platform: PlatformType;
+    presetId?: string;
+    additionalContext?: string;
+}
+
 export interface CreateThoughtRequest {
     thought: string;
     categoryId?: string;
     platforms: PlatformType[];
     additionalInstructions?: string;
+    platformConfigs?: PlatformSelection[];
 }
 
 export interface ThoughtCategory {
@@ -60,6 +70,8 @@ export interface ThoughtCategory {
 
 export interface PlatformPrompt {
     id?: string;
+    name: string;
+    description: string;
     platform: PlatformType;
     promptText: string;
     createdDateTime?: string;

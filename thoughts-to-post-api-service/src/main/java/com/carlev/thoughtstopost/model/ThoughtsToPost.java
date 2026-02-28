@@ -30,6 +30,11 @@ public class ThoughtsToPost {
 
     private String originalThought;
 
+    private String additionalInstructions;
+
+    @Builder.Default
+    private List<PlatformSelection> platformSelections = new ArrayList<>();
+
     @Builder.Default
     private List<EnrichedContent> enrichedContents = new ArrayList<>();
 
@@ -69,6 +74,19 @@ public class ThoughtsToPost {
 
     @Builder.Default
     private boolean postImage = true;
+
+    /**
+     * Selection details for each platform.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PlatformSelection {
+        private PlatformType platform;
+        private String presetId;
+        private String additionalContext;
+    }
 
     /**
      * Nested class for platform-specific enriched content.
