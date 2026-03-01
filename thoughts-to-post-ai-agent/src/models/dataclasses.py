@@ -29,11 +29,32 @@ class RequestStatus(str, Enum):
     FAILED = "failed"
 
 
+class GenerationParameters(BaseModel):
+    """Parameters for image/video generation."""
+    resolution: Optional[str] = None
+    steps: Optional[int] = None
+    cfg_scale: Optional[float] = Field(default=None, alias="cfgScale")
+    seed: Optional[int] = None
+    model_type: Optional[str] = Field(default=None, alias="modelType")
+    sampler: Optional[str] = None
+    batch_size: Optional[int] = Field(default=None, alias="batchSize")
+    async_mode: Optional[bool] = Field(default=None, alias="asyncMode")
+    duration: Optional[int] = None
+    fps: Optional[int] = None
+
+    class Config:
+        populate_by_name = True
+
+
 class PlatformConfiguration(BaseModel):
     """Configuration for a specific social media platform."""
     platform: PlatformType
     prompt: Optional[str] = None
+    image_prompt: Optional[str] = Field(default=None, alias="imagePrompt")
+    video_prompt: Optional[str] = Field(default=None, alias="videoPrompt")
     additional_context: Optional[str] = Field(default=None, alias="additionalContext")
+    image_params: Optional[GenerationParameters] = Field(default=None, alias="imageParams")
+    video_params: Optional[GenerationParameters] = Field(default=None, alias="videoParams")
 
     class Config:
         populate_by_name = True
@@ -137,6 +158,7 @@ class EnrichedContent(BaseModel):
     hashtags: list[str] = Field(default_factory=list)
     call_to_action: Optional[str] = Field(default=None, alias="call_to_action")
     character_count: int = Field(default=0, alias="character_count")
+    progress: float = Field(default=0.0)
     images: list[GeneratedImage] = Field(default_factory=list)
 
     def model_post_init(self, __context) -> None:

@@ -85,7 +85,11 @@ public class ThoughtsToPost {
     public static class PlatformSelection {
         private PlatformType platform;
         private String presetId;
+        private String imagePresetId;
+        private String videoPresetId;
         private String additionalContext;
+        private com.carlev.thoughtstopost.kafka.GenerationParameters imageParams;
+        private com.carlev.thoughtstopost.kafka.GenerationParameters videoParams;
     }
 
     /**
@@ -116,6 +120,8 @@ public class ThoughtsToPost {
         private Integer retryCount = 0;
         private LocalDateTime lastRetryAt;
         private String errorMessage;
+        @Builder.Default
+        private Double progress = 0.0;
     }
 
     /**

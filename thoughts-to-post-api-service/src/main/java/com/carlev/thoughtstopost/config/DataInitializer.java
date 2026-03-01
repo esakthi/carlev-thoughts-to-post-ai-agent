@@ -35,10 +35,11 @@ public class DataInitializer implements CommandLineRunner {
 
     private void seedCategories() {
         if (categoryRepository.count() == 0) {
-            log.info("Seeding default thought category...");
-            ThoughtCategory defaultCategory = ThoughtCategory.builder()
-                    .thoughtCategory("Default")
-                    .searchDescription("General category for all types of thoughts.")
+            log.info("Seeding default thought categories...");
+            ThoughtCategory defaultTextCategory = ThoughtCategory.builder()
+                    .thoughtCategory("Narrative")
+                    .type(com.carlev.thoughtstopost.model.PromptType.TEXT)
+                    .searchDescription("General category for text-based content.")
                     .modelRole("""
                             You are an AI content enrichment specialist. Your task is to transform
                             raw thoughts and ideas into polished, engaging social media content.
@@ -52,12 +53,28 @@ public class DataInitializer implements CommandLineRunner {
 
                             Always respond with ONLY the enriched content text, no additional commentary or formatting markers.""")
                     .build();
-            categoryRepository.save(defaultCategory);
+            categoryRepository.save(defaultTextCategory);
+
+            ThoughtCategory defaultVisualCategory = ThoughtCategory.builder()
+                    .thoughtCategory("Visual")
+                    .type(com.carlev.thoughtstopost.model.PromptType.IMAGE)
+                    .searchDescription("Default category for image generation.")
+                    .modelRole("Expert AI art prompt engineer focused on professional, high-impact visuals.")
+                    .build();
+            categoryRepository.save(defaultVisualCategory);
+
+            ThoughtCategory defaultMotionCategory = ThoughtCategory.builder()
+                    .thoughtCategory("Motion")
+                    .type(com.carlev.thoughtstopost.model.PromptType.VIDEO)
+                    .searchDescription("Default category for video generation.")
+                    .modelRole("Expert video prompt engineer creating dynamic and consistent motion content.")
+                    .build();
+            categoryRepository.save(defaultMotionCategory);
         }
     }
 
     private void seedPlatformPrompts() {
-        seedPlatformPrompt("Professional LinkedIn", "Standard professional hook and authority building.", PlatformType.LINKEDIN, """
+        seedPlatformPrompt("Professional LinkedIn", "Standard professional hook and authority building.", PlatformType.LINKEDIN, com.carlev.thoughtstopost.model.PromptType.TEXT, """
                 You are an expert LinkedIn content creator specializing in professional
                 thought leadership posts. Your content should be:
                 - Professional yet engaging and personable
@@ -69,7 +86,12 @@ public class DataInitializer implements CommandLineRunner {
 
                 Write content that establishes authority while being relatable to professionals.""");
 
-        seedPlatformPrompt("Engaging Facebook", "Conversational and community focused.", PlatformType.FACEBOOK, """
+        seedPlatformPrompt("LinkedIn Visual", "Professional visual prompt for LinkedIn.", PlatformType.LINKEDIN, com.carlev.thoughtstopost.model.PromptType.IMAGE, """
+                Create a professional, high-quality corporate photography or 3D illustration
+                representing the core concept of this post. Use muted, professional colors
+                and avoid any text in the image.""");
+
+        seedPlatformPrompt("Engaging Facebook", "Conversational and community focused.", PlatformType.FACEBOOK, com.carlev.thoughtstopost.model.PromptType.TEXT, """
                 You are an expert Facebook content creator. Your content should be:
                 - Conversational and engaging
                 - Between 100-250 words for optimal engagement
@@ -80,7 +102,7 @@ public class DataInitializer implements CommandLineRunner {
 
                 Write content that feels personal and encourages community interaction.""");
 
-        seedPlatformPrompt("Visual Instagram", "Engaging captions for visual media.", PlatformType.INSTAGRAM, """
+        seedPlatformPrompt("Visual Instagram", "Engaging captions for visual media.", PlatformType.INSTAGRAM, com.carlev.thoughtstopost.model.PromptType.TEXT, """
                 You are an expert Instagram caption writer. Your content should be:
                 - Engaging and visually descriptive
                 - Start with a hook before the "more" fold (first 125 characters)
@@ -92,14 +114,15 @@ public class DataInitializer implements CommandLineRunner {
                 Write content that complements visual media and encourages saves and shares.""");
     }
 
-    private void seedPlatformPrompt(String name, String description, PlatformType platform, String promptText) {
+    private void seedPlatformPrompt(String name, String description, PlatformType platform, com.carlev.thoughtstopost.model.PromptType type, String promptText) {
         List<PlatformPrompt> existing = platformPromptRepository.findAllByPlatform(platform);
-        if (existing.isEmpty()) {
-            log.info("Seeding platform prompt for {}...", platform);
+        if (existing.stream().noneMatch(p -> p.getName().equals(name))) {
+            log.info("Seeding platform prompt '{}' for {}...", name, platform);
             PlatformPrompt prompt = PlatformPrompt.builder()
                     .name(name)
                     .description(description)
                     .platform(platform)
+                    .type(type)
                     .promptText(promptText)
                     .build();
             platformPromptRepository.save(prompt);

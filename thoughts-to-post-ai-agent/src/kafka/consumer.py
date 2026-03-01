@@ -62,8 +62,9 @@ class KafkaRequestConsumer:
 
     def _create_consumer(self) -> KafkaPythonConsumer:
         """Create and configure the Kafka consumer."""
+        topics = [self.topic, f"{self.topic}-retry-5s", f"{self.topic}-retry-30s", f"{self.topic}-retry-5m"]
         return KafkaPythonConsumer(
-            self.topic,
+            *topics,
             bootstrap_servers=self.bootstrap_servers.split(","),
             group_id=self.group_id,
             auto_offset_reset="earliest",
@@ -74,7 +75,7 @@ class KafkaRequestConsumer:
             session_timeout_ms=30000,
         )
 
-    def start(self, message_handler: Callable[[ThoughtRequest], None]) -> None:
+    def start(self, message_handler: Callable[[ThoughtRequest, dict], None]) -> None:
         """Start consuming messages and process them with the handler.
 
         Args:
@@ -146,7 +147,15 @@ class KafkaRequestConsumer:
                             logger.info(f"Before parsing ThoughtRequest: Record value: {record.value}")
                             thought_request = ThoughtRequest(**record.value)
                             logger.info(f"Successfully parsed ThoughtRequest: request_id={thought_request.request_id}")
-                            message_handler(thought_request)
+
+                            # Extract headers for retry tracking
+                            headers = {}
+                            if record.headers:
+                                for hk, hv in record.headers:
+                                    headers[hk.decode("utf-8") if isinstance(hk, bytes) else hk] = \
+                                        hv.decode("utf-8") if isinstance(hv, bytes) else hv
+
+                            message_handler(thought_request, headers)
 
                         except Exception as e:
                             logger.error(

@@ -20,10 +20,13 @@ import { ThoughtCategory } from '../../../models/thought.models';
         @for (cat of categories(); track cat.id) {
           <div class="card">
             <div class="card-header">
-              <h3>{{ cat.thoughtCategory }}</h3>
+              <div>
+                <h3>{{ cat.thoughtCategory }}</h3>
+                <span class="badge" [class]="'badge-' + (cat.type?.toLowerCase() || 'text')">{{ cat.type || 'TEXT' }}</span>
+              </div>
               <div class="actions">
                 <button class="btn-icon" (click)="editCategory(cat)">✏️</button>
-                <button class="btn-icon" (click)="deleteCategory(cat.id!)" [disabled]="cat.thoughtCategory === 'Default'">🗑️</button>
+                <button class="btn-icon" (click)="deleteCategory(cat.id!)" [disabled]="cat.thoughtCategory === 'Narrative' || cat.thoughtCategory === 'Visual'">🗑️</button>
               </div>
             </div>
             <p class="description">{{ cat.searchDescription }}</p>
@@ -45,6 +48,15 @@ import { ThoughtCategory } from '../../../models/thought.models';
             <div class="form-group">
               <label class="form-label">Category Name</label>
               <input type="text" class="form-input" [(ngModel)]="currentCat().thoughtCategory" name="name" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Category Type</label>
+              <select class="form-input" [(ngModel)]="currentCat().type" name="type" required>
+                <option value="TEXT">TEXT</option>
+                <option value="IMAGE">IMAGE</option>
+                <option value="VIDEO">VIDEO</option>
+                <option value="OTHERS">OTHERS</option>
+              </select>
             </div>
             <div class="form-group">
               <label class="form-label">Search Description (Context for AI)</label>
@@ -83,6 +95,20 @@ import { ThoughtCategory } from '../../../models/thought.models';
       align-items: flex-start;
       margin-bottom: var(--spacing-md);
     }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-top: 0.25rem;
+    }
+    .badge-text { background: #4a90e2; color: white; }
+    .badge-image { background: #e1306c; color: white; }
+    .badge-video { background: #f5a623; color: white; }
+    .badge-others { background: #7b7b7b; color: white; }
 
     .actions {
       display: flex;
@@ -155,6 +181,7 @@ export class CategoriesPageComponent implements OnInit {
     editingId = signal<string | null>(null);
     currentCat = signal<ThoughtCategory>({
         thoughtCategory: '',
+        type: 'TEXT',
         searchDescription: '',
         modelRole: ''
     });
@@ -171,6 +198,7 @@ export class CategoriesPageComponent implements OnInit {
         this.editingId.set(null);
         this.currentCat.set({
             thoughtCategory: '',
+            type: 'TEXT',
             searchDescription: '',
             modelRole: ''
         });

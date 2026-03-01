@@ -66,11 +66,13 @@ class KafkaResponseProducer:
             self._producer = self._create_producer()
             logger.info(f"Kafka producer connected to {self.bootstrap_servers}")
 
-    def send(self, response: AgentResponse) -> None:
-        """Send an enrichment response to Kafka.
+    def send(self, response: AgentResponse, topic: Optional[str] = None, headers: Optional[list] = None) -> None:
+        """Send an enrichment response or retry message to Kafka.
 
         Args:
-            response: The AgentResponse to send
+            response: The AgentResponse or ThoughtRequest (as dict) to send
+            topic: Override default topic (used for retries)
+            headers: Optional Kafka headers
         """
         if not self._producer:
             self.connect()
@@ -100,10 +102,15 @@ class KafkaResponseProducer:
             logger.info("=" * 80)
 
             # Use request_id as the message key for partitioning
+            target_topic = topic or self.topic
+            payload = response.model_dump() if hasattr(response, "model_dump") else response
+            key = response.request_id if hasattr(response, "request_id") else response.get("requestId")
+
             future = self._producer.send(
-                self.topic,
-                key=response.request_id,
-                value=response.model_dump(),
+                target_topic,
+                key=key,
+                value=payload,
+                headers=headers
             )
 
             # Wait for the message to be sent

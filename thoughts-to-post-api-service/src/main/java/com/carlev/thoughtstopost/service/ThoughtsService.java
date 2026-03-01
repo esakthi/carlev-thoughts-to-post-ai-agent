@@ -58,7 +58,11 @@ public class ThoughtsService {
                 selections.add(ThoughtsToPost.PlatformSelection.builder()
                         .platform(config.getPlatform())
                         .presetId(config.getPresetId())
+                        .imagePresetId(config.getImagePresetId())
+                        .videoPresetId(config.getVideoPresetId())
                         .additionalContext(config.getAdditionalContext())
+                        .imageParams(config.getImageParams())
+                        .videoParams(config.getVideoParams())
                         .build());
                 selectedPlatforms.add(config.getPlatform());
             }
@@ -351,6 +355,9 @@ public class ThoughtsService {
                     content.setHashtags(ecMsg.getHashtags());
                     content.setCallToAction(ecMsg.getCallToAction());
                     content.setCharacterCount(ecMsg.getCharacterCount());
+                    if (ecMsg.getProgress() != null) {
+                        content.setProgress(ecMsg.getProgress());
+                    }
                 }
 
                 if (ecMsg.getImages() != null) {
@@ -420,15 +427,34 @@ public class ThoughtsService {
 
             if (promptText == null) {
                 promptText = platformPromptRepository.findAllByPlatform(selection.getPlatform()).stream()
+                        .filter(p -> p.getType() == com.carlev.thoughtstopost.model.PromptType.TEXT || p.getType() == null)
                         .findFirst()
                         .map(PlatformPrompt::getPromptText)
                         .orElse("");
             }
 
+            String imagePrompt = null;
+            if (selection.getImagePresetId() != null) {
+                imagePrompt = platformPromptRepository.findById(selection.getImagePresetId())
+                        .map(PlatformPrompt::getPromptText)
+                        .orElse(null);
+            }
+
+            String videoPrompt = null;
+            if (selection.getVideoPresetId() != null) {
+                videoPrompt = platformPromptRepository.findById(selection.getVideoPresetId())
+                        .map(PlatformPrompt::getPromptText)
+                        .orElse(null);
+            }
+
             configurations.add(ThoughtRequestMessage.PlatformConfiguration.builder()
                     .platform(selection.getPlatform())
                     .prompt(promptText)
+                    .imagePrompt(imagePrompt)
+                    .videoPrompt(videoPrompt)
                     .additionalContext(selection.getAdditionalContext())
+                    .imageParams(selection.getImageParams())
+                    .videoParams(selection.getVideoParams())
                     .build());
 
             legacyPlatformPrompts.put(selection.getPlatform(), promptText);
