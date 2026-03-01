@@ -41,6 +41,7 @@ public class AdminController {
                     category.setThoughtCategory(categoryDetails.getThoughtCategory());
                     category.setSearchDescription(categoryDetails.getSearchDescription());
                     category.setModelRole(categoryDetails.getModelRole());
+                    category.setType(categoryDetails.getType());
                     return ResponseEntity.ok(categoryRepository.save(category));
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -78,6 +79,7 @@ public class AdminController {
                     prompt.setName(promptDetails.getName());
                     prompt.setDescription(promptDetails.getDescription());
                     prompt.setPlatform(promptDetails.getPlatform());
+                    prompt.setType(promptDetails.getType());
                     prompt.setPromptText(promptDetails.getPromptText());
                     return ResponseEntity.ok(platformPromptRepository.save(prompt));
                 })

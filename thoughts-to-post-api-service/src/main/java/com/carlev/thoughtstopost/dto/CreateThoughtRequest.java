@@ -38,6 +38,10 @@ public class CreateThoughtRequest {
     public static class PlatformConfig {
         private PlatformType platform;
         private String presetId;
+        private String imagePresetId;
+        private String videoPresetId;
         private String additionalContext;
+        private com.carlev.thoughtstopost.kafka.GenerationParameters imageParams;
+        private com.carlev.thoughtstopost.kafka.GenerationParameters videoParams;
     }
 }

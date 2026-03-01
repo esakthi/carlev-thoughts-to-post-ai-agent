@@ -190,6 +190,26 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest, PlatformType, 
                     </div>
                   }
                 </div>
+
+                @if ((content.videos?.length ?? 0) > 0) {
+                  <div class="video-list mt-md">
+                    <h5 class="section-title">Generated Videos</h5>
+                    @for (video of content.videos; track video.id) {
+                      <div class="video-item card">
+                        <div class="video-info">
+                          <span class="video-icon">🎬</span>
+                          <div>
+                            <strong>Video ({{ video.status }})</strong>
+                            <p class="text-muted small mb-0">{{ video.promptUsed | slice:0:100 }}...</p>
+                          </div>
+                        </div>
+                        <div class="video-actions">
+                          <a [href]="video.videoUrl" target="_blank" class="btn btn-secondary btn-xs">Watch / Download</a>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
               } @else {
                 <p class="text-muted italic">No images generated yet for this platform.</p>
               }
@@ -297,6 +317,11 @@ import { ThoughtResponse, PLATFORM_CONFIG, ApproveThoughtRequest, PlatformType, 
     .image-meta { padding: 5px; display: flex; gap: 5px; }
     .tag-input { font-size: 10px; padding: 2px 5px; height: 24px; }
     .btn-icon { background: none; border: none; cursor: pointer; font-size: 14px; }
+    .video-item { display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-sm) var(--spacing-md); background: rgba(255,255,255,0.05); margin-top: var(--spacing-xs); }
+    .video-info { display: flex; align-items: center; gap: var(--spacing-md); }
+    .video-icon { font-size: 1.5rem; }
+    .btn-xs { padding: 4px 8px; font-size: 0.75rem; }
+    .mb-0 { margin-bottom: 0; }
     .action-buttons { display: flex; gap: var(--spacing-md); margin-top: var(--spacing-md); .btn { flex: 1; padding: var(--spacing-lg); } }
     .mt-md { margin-top: var(--spacing-md); }
     .mt-sm { margin-top: var(--spacing-sm); }

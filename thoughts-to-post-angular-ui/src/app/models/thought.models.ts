@@ -4,6 +4,8 @@
 
 export type PlatformType = 'LINKEDIN' | 'FACEBOOK' | 'INSTAGRAM';
 
+export type PromptType = 'TEXT' | 'IMAGE' | 'VIDEO' | 'OTHERS';
+
 export type PostStatus =
     | 'PENDING'
     | 'PROCESSING'
@@ -27,6 +29,15 @@ export interface GeneratedImage {
     createdAt: string;
 }
 
+export interface GeneratedVideo {
+    id: string;
+    videoUrl: string;
+    promptUsed: string;
+    cloudProvider?: string;
+    status: string;
+    createdAt: string;
+}
+
 export interface EnrichedContent {
     platform: PlatformType;
     title?: string;
@@ -35,6 +46,7 @@ export interface EnrichedContent {
     callToAction?: string;
     characterCount: number;
     images?: GeneratedImage[];
+    videos?: GeneratedVideo[];
 }
 
 export interface ThoughtResponse {
@@ -58,10 +70,27 @@ export interface ThoughtResponse {
     postImage: boolean;
 }
 
+export interface GenerationParameters {
+    resolution?: string;
+    steps?: number;
+    cfgScale?: number;
+    seed?: number;
+    modelType?: string;
+    sampler?: string;
+    batchSize?: number;
+    asyncMode?: boolean;
+    duration?: number;
+    fps?: number;
+}
+
 export interface PlatformSelection {
     platform: PlatformType;
     presetId?: string;
+    imagePresetId?: string;
+    videoPresetId?: string;
     additionalContext?: string;
+    imageParams?: GenerationParameters;
+    videoParams?: GenerationParameters;
 }
 
 export interface CreateThoughtRequest {
@@ -75,6 +104,7 @@ export interface CreateThoughtRequest {
 export interface ThoughtCategory {
     id?: string;
     thoughtCategory: string;
+    type: PromptType;
     searchDescription: string;
     modelRole: string;
     createdDateTime?: string;
@@ -86,6 +116,7 @@ export interface PlatformPrompt {
     name: string;
     description: string;
     platform: PlatformType;
+    type: PromptType;
     promptText: string;
     createdDateTime?: string;
     updatedDateTime?: string;
