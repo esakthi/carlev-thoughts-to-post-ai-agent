@@ -120,6 +120,8 @@ public class ThoughtsToPost {
         private Integer retryCount = 0;
         private LocalDateTime lastRetryAt;
         private String errorMessage;
+        @Builder.Default
+        private Double progress = 0.0;
     }
 
     /**

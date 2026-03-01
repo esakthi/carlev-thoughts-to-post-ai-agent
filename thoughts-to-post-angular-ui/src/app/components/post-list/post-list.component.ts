@@ -27,6 +27,24 @@ import { ThoughtResponse, PLATFORM_CONFIG } from '../../models/thought.models';
               <div class="post-preview">
                 <p class="thought-text text-truncate">{{ thought.originalThought }}</p>
               </div>
+
+              <!-- Progress Tracking per Platform -->
+              @if (thought.status === 'PROCESSING' || thought.status === 'PENDING') {
+                <div class="progress-section">
+                  @for (content of thought.enrichedContents; track content.platform) {
+                    <div class="platform-progress">
+                      <div class="progress-info">
+                        <small>{{ PLATFORM_CONFIG[content.platform].label }}</small>
+                        <small>{{ (content.progress || 0) | number:'1.0-0' }}%</small>
+                      </div>
+                      <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" [style.width.%]="content.progress || 5"></div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+
               <div class="post-footer">
                 <div class="platforms">
                   @for (platform of thought.selectedPlatforms; track platform) {
@@ -114,6 +132,35 @@ import { ThoughtResponse, PLATFORM_CONFIG } from '../../models/thought.models';
       font-size: 0.875rem;
       color: var(--primary-color);
       font-weight: 500;
+    }
+
+    .progress-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+      margin-top: var(--spacing-xs);
+    }
+
+    .platform-progress {
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2px;
+        small { font-size: 0.7rem; color: var(--text-secondary); }
+      }
+    }
+
+    .progress-bar-bg {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary-gradient);
+      transition: width 0.5s ease;
     }
 
     .empty-state {

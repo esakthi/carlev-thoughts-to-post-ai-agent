@@ -5,9 +5,11 @@ import logging
 import os
 import textwrap
 import uuid
+import threading
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Callable
 
 import httpx
 from langchain_ollama import ChatOllama
@@ -24,7 +26,12 @@ class ImageGenerator(ABC):
     """Abstract base class for image generators."""
 
     @abstractmethod
-    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
+    def generate(
+        self,
+        prompt: str,
+        params: Optional[dict] = None,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> GeneratedImage:
         """Generate an image from a prompt."""
         pass
 
@@ -37,7 +44,12 @@ class PillowFallbackGenerator(ImageGenerator):
     visibly in the UI and can be opened for validation.
     """
 
-    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
+    def generate(
+        self,
+        prompt: str,
+        params: Optional[dict] = None,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> GeneratedImage:
         """Return a branded placeholder PNG with the prompt text rendered on it."""
         try:
             from PIL import Image, ImageDraw, ImageFont
@@ -137,8 +149,13 @@ class StableDiffusionGenerator(ImageGenerator):
         """Initialize the Stable Diffusion generator."""
         self.api_url = api_url or settings.stable_diffusion_url
 
-    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
-        """Generate an image using Stable Diffusion.
+    def generate(
+        self,
+        prompt: str,
+        params: Optional[dict] = None,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> GeneratedImage:
+        """Generate an image using Stable Diffusion with progress tracking.
 
         Falls back to PillowFallbackGenerator if SD is unreachable so the
         pipeline always returns an image even while SD is starting up.
@@ -175,10 +192,42 @@ class StableDiffusionGenerator(ImageGenerator):
 
         # Heuristic timeout estimation
         estimated_seconds = (width * height / (512 * 512)) * (steps / 20) * 10
-        timeout = max(120.0, estimated_seconds * 1.5)
+        timeout = max(180.0, estimated_seconds * 2.0) # Increased timeout for safety
         logger.info(f"Estimated runtime: {estimated_seconds}s. Using timeout: {timeout}s")
 
+        # Progress tracking state
+        stop_polling = threading.Event()
+        last_reported_progress = 0.0
+
+        def poll_progress():
+            nonlocal last_reported_progress
+            logger.debug(f"Starting progress polling for SD at {self.api_url}")
+            while not stop_polling.is_set():
+                try:
+                    with httpx.Client(timeout=5.0) as client:
+                        resp = client.get(f"{self.api_url}/sdapi/v1/progress")
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            progress = data.get("progress", 0.0) # 0.0 to 1.0
+
+                            # Report every 10% or if it's near completion
+                            if progress_callback and (progress - last_reported_progress >= 0.1 or progress > 0.95):
+                                logger.info(f"SD Progress: {progress*100:.1f}%")
+                                progress_callback(progress * 100)
+                                last_reported_progress = progress
+                except Exception as e:
+                    logger.debug(f"Progress polling error (non-fatal): {e}")
+
+                # Poll every 2 seconds
+                stop_polling.wait(2.0)
+
+        polling_thread = threading.Thread(target=poll_progress, daemon=True)
+        polling_thread.start()
+
         try:
+            if progress_callback:
+                progress_callback(5.0) # Indicate start
+
             with httpx.Client(timeout=timeout) as client:
                 logger.debug(f"Sending request to Stable Diffusion: {endpoint}")
                 response = client.post(endpoint, json=payload)
@@ -188,13 +237,16 @@ class StableDiffusionGenerator(ImageGenerator):
                 image_base64 = result["images"][0]
                 logger.info(f"Stable Diffusion generated image successfully. Base64 length: {len(image_base64)}")
 
+                if progress_callback:
+                    progress_callback(100.0)
+
                 return GeneratedImage(
                     id=str(uuid.uuid4()),
                     image_base64=image_base64,
                     image_format="png",
                     prompt_used=prompt,
-                    width=1024,
-                    height=1024,
+                    width=width,
+                    height=height,
                     created_at=datetime.utcnow(),
                 )
 
@@ -209,6 +261,9 @@ class StableDiffusionGenerator(ImageGenerator):
         except Exception as e:
             logger.error(f"Stable Diffusion generation failed with unexpected error: {e}")
             raise
+        finally:
+            stop_polling.set()
+            polling_thread.join(timeout=1.0)
 
 
 class DalleGenerator(ImageGenerator):
@@ -220,7 +275,12 @@ class DalleGenerator(ImageGenerator):
         if not self.api_key:
             raise ValueError("OpenAI API key required for DALL-E generator")
 
-    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
+    def generate(
+        self,
+        prompt: str,
+        params: Optional[dict] = None,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> GeneratedImage:
         """Generate an image using DALL-E."""
         logger.info("Generating image via OpenAI DALL-E 3")
         logger.debug(f"DALL-E Prompt: {prompt}")
@@ -272,7 +332,12 @@ class OllamaGenerator(ImageGenerator):
         self.api_url = api_url or settings.ollama_base_url
         self.model_name = model_name or settings.ollama_image_model
 
-    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
+    def generate(
+        self,
+        prompt: str,
+        params: Optional[dict] = None,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> GeneratedImage:
         """Generate an image using Ollama."""
         endpoint = f"{self.api_url}/api/generate"
 
@@ -449,6 +514,7 @@ Respond with ONLY the enhanced image prompt, nothing else."""
         image_params: Optional[dict] = None,
         refinement_instructions: Optional[str] = None,
         request_id: Optional[str] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> GeneratedImage:
         """Generate an image based on enriched content and save it to disk."""
         logger.info(f"Generating image for {content.platform.value} content")
@@ -458,7 +524,7 @@ Respond with ONLY the enhanced image prompt, nothing else."""
             refinement_instructions=refinement_instructions
         )
         generator = self._get_generator()
-        image = generator.generate(image_prompt, params=image_params)
+        image = generator.generate(image_prompt, params=image_params, progress_callback=progress_callback)
 
         # Save to disk for validation (non-fatal if it fails)
         _save_image_to_disk(
