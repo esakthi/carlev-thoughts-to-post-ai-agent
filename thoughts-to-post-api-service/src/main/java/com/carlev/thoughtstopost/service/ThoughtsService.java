@@ -355,6 +355,9 @@ public class ThoughtsService {
                     content.setHashtags(ecMsg.getHashtags());
                     content.setCallToAction(ecMsg.getCallToAction());
                     content.setCharacterCount(ecMsg.getCharacterCount());
+                    if (ecMsg.getProgress() != null) {
+                        content.setProgress(ecMsg.getProgress());
+                    }
                 }
 
                 if (ecMsg.getImages() != null) {

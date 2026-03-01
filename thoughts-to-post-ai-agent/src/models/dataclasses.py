@@ -158,6 +158,7 @@ class EnrichedContent(BaseModel):
     hashtags: list[str] = Field(default_factory=list)
     call_to_action: Optional[str] = Field(default=None, alias="call_to_action")
     character_count: int = Field(default=0, alias="character_count")
+    progress: float = Field(default=0.0)
     images: list[GeneratedImage] = Field(default_factory=list)
 
     def model_post_init(self, __context) -> None:

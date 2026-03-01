@@ -68,6 +68,8 @@ public class ThoughtResponseMessage {
         @JsonProperty("character_count")
         private Integer characterCount;
 
+        private Double progress;
+
         @JsonProperty("images")
         private List<GeneratedImageMessage> images;
     }

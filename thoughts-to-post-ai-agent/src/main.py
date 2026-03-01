@@ -31,6 +31,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+import threading
+
 class ThoughtsToPostAgent:
     """Main orchestrator for the AI agent pipeline."""
 
@@ -43,6 +45,7 @@ class ThoughtsToPostAgent:
         self.video_agent = VideoGenerationAgent()
         self.memory = CheckpointMemory(persist_dir="./checkpoints")
         self._shutdown_requested = False
+        self._sd_lock = threading.Lock() # Ensure sequential SD generation
 
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
@@ -169,31 +172,52 @@ class ThoughtsToPostAgent:
 
             for platform in request.platforms:
                 logger.info(f"-> Processing platform: {platform}")
+                # Check if this platform was already successfully processed in a previous retry
+                existing_content = next((c for c in context.enriched_contents if c.platform == platform), None)
+                if existing_content and existing_content.body and existing_content.images:
+                     logger.info(f"Platform {platform} already completed in previous attempt. Skipping.")
+                     continue
+
                 try:
                     # Step 1: Enrich Text
-                    enriched = self.content_agent.enrich_for_platform(request, platform)
+                    if not existing_content or not existing_content.body:
+                        enriched = self.content_agent.enrich_for_platform(request, platform)
+                    else:
+                        enriched = existing_content
 
-                    # Step 2: Generate unique image for this platform
+                    # Step 2: Generate unique image for this platform (Sequentially)
                     logger.info(f"Generating unique image for platform: {platform}")
                     config = next((c for c in request.platform_configurations if c.platform == platform), None)
 
-                    try:
-                        user_img_prompt = config.image_prompt if config else None
-                        img_params = config.image_params.model_dump() if config and config.image_params else None
-
-                        initial_image = self.image_agent.generate_for_content(
-                            enriched,
-                            user_image_prompt=user_img_prompt,
-                            image_params=img_params,
+                    def report_progress(p: float):
+                        enriched.progress = p
+                        self.producer.send(AgentResponse(
                             request_id=request.request_id,
-                        )
-                        enriched.images = [initial_image]
-                    except Exception as e:
-                        logger.warning(f"Initial image generation failed for {platform}: {e}")
-                        enriched.images = []
+                            user_id=request.user_id,
+                            status=RequestStatus.IN_PROGRESS,
+                            enriched_contents=[enriched],
+                            version=context.current_version,
+                        ))
+
+                    with self._sd_lock:
+                        try:
+                            user_img_prompt = config.image_prompt if config else None
+                            img_params = config.image_params.model_dump() if config and config.image_params else None
+
+                            initial_image = self.image_agent.generate_for_content(
+                                enriched,
+                                user_image_prompt=user_img_prompt,
+                                image_params=img_params,
+                                request_id=request.request_id,
+                                progress_callback=report_progress
+                            )
+                            enriched.images = [initial_image]
+                        except Exception as e:
+                            logger.warning(f"Initial image generation failed for {platform}: {e}")
+                            enriched.images = []
 
                     # Step 3: Video Generation
-                    if config and config.video_prompt:
+                    if config and config.video_prompt and (not existing_content or not existing_content.videos):
                         logger.info(f"Generating video for platform: {platform}")
                         try:
                             video_result = self.video_agent.generate_for_content(

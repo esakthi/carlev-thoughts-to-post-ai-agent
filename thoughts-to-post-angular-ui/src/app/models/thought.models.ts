@@ -45,6 +45,7 @@ export interface EnrichedContent {
     hashtags: string[];
     callToAction?: string;
     characterCount: number;
+    progress?: number;
     images?: GeneratedImage[];
     videos?: GeneratedVideo[];
 }
