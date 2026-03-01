@@ -22,6 +22,7 @@ public class ThoughtCategory {
     private String thoughtCategory;
     private String searchDescription;
     private String modelRole;
+    private PromptType type;
 
     @CreatedDate
     private LocalDateTime createdDateTime;

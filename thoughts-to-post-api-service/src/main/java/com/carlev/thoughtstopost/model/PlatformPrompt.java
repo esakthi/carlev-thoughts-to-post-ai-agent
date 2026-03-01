@@ -22,6 +22,7 @@ public class PlatformPrompt {
     private String name;
     private String description;
     private PlatformType platform;
+    private PromptType type;
     private String promptText;
 
     @CreatedDate

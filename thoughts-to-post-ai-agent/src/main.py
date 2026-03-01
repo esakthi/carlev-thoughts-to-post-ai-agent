@@ -7,7 +7,7 @@ from typing import Optional
 
 from .config import settings
 from .kafka import KafkaRequestConsumer, KafkaResponseProducer
-from .agents import ContentEnrichmentAgent, ImageGenerationAgent
+from .agents import ContentEnrichmentAgent, ImageGenerationAgent, VideoGenerationAgent
 from .memory import CheckpointMemory
 from .models import (
     ThoughtRequest,
@@ -40,6 +40,7 @@ class ThoughtsToPostAgent:
         self.producer = KafkaResponseProducer()
         self.content_agent = ContentEnrichmentAgent()
         self.image_agent = ImageGenerationAgent()
+        self.video_agent = VideoGenerationAgent()
         self.memory = CheckpointMemory(persist_dir="./checkpoints")
         self._shutdown_requested = False
 
@@ -89,13 +90,14 @@ class ThoughtsToPostAgent:
             })
         context.conversation_history = history_dicts
 
-    def process_request(self, request: ThoughtRequest) -> None:
+    def process_request(self, request: ThoughtRequest, headers: Optional[dict] = None) -> None:
         """Process a single thought enrichment request.
 
         Args:
             request: The thought request to process
+            headers: Kafka headers for retry tracking
         """
-        logger.info(f"Processing request: {request.request_id}")
+        logger.info(f"Processing request: {request.request_id} (Headers: {headers})")
 
         # Create or get existing context
         logger.debug(f"Retrieving context for request {request.request_id}")
@@ -173,15 +175,37 @@ class ThoughtsToPostAgent:
 
                     # Step 2: Generate unique image for this platform
                     logger.info(f"Generating unique image for platform: {platform}")
+                    config = next((c for c in request.platform_configurations if c.platform == platform), None)
+
                     try:
+                        user_img_prompt = config.image_prompt if config else None
+                        img_params = config.image_params.model_dump() if config and config.image_params else None
+
                         initial_image = self.image_agent.generate_for_content(
                             enriched,
+                            user_image_prompt=user_img_prompt,
+                            image_params=img_params,
                             request_id=request.request_id,
                         )
                         enriched.images = [initial_image]
                     except Exception as e:
                         logger.warning(f"Initial image generation failed for {platform}: {e}")
                         enriched.images = []
+
+                    # Step 3: Video Generation
+                    if config and config.video_prompt:
+                        logger.info(f"Generating video for platform: {platform}")
+                        try:
+                            video_result = self.video_agent.generate_for_content(
+                                enriched,
+                                user_video_prompt=config.video_prompt,
+                                video_params=config.video_params.model_dump() if config.video_params else None,
+                                request_id=request.request_id
+                            )
+                            logger.info(f"Video generation simulated: {video_result}")
+                            # In future, EnrichedContent will have a videos list
+                        except Exception as e:
+                            logger.warning(f"Video generation failed for {platform}: {e}")
 
                     # Update list
                     existing_idx = next((i for i, c in enumerate(all_enriched_contents) if c.platform == platform), -1)
@@ -244,6 +268,24 @@ class ThoughtsToPostAgent:
 
         except Exception as e:
             logger.error(f"Failed to process request {request.request_id}: {e}", exc_info=True)
+
+            # Retry logic
+            retry_count = int(headers.get("x-retry-count", 0)) if headers else 0
+            if retry_count < 3:
+                new_retry_count = retry_count + 1
+                retry_topics = ["retry-5s", "retry-30s", "retry-5m"]
+                next_topic = f"{settings.kafka_request_topic}-{retry_topics[retry_count]}"
+
+                logger.info(f"Retrying request {request.request_id} (Attempt {new_retry_count}) via topic {next_topic}")
+
+                retry_headers = [
+                    ("x-retry-count", str(new_retry_count).encode("utf-8")),
+                    ("x-last-error", str(e).encode("utf-8"))
+                ]
+
+                self.producer.send(request.model_dump(), topic=next_topic, headers=retry_headers)
+                return
+
             self.memory.update_context(request.request_id, status=RequestStatus.FAILED, error_message=str(e))
             error_response = AgentResponse(
                 request_id=request.request_id,

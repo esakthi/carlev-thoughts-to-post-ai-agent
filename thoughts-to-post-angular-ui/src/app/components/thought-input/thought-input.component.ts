@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, Output, signal, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG, ThoughtCategory, PlatformPrompt, PlatformSelection } from '../../models/thought.models';
+import { CreateThoughtRequest, PlatformType, PLATFORM_CONFIG, ThoughtCategory, PlatformPrompt, PlatformSelection, PromptType, GenerationParameters } from '../../models/thought.models';
 import { ThoughtsService } from '../../services/thoughts.service';
 
 @Component({
@@ -62,9 +62,12 @@ import { ThoughtsService } from '../../services/thoughts.service';
             <thead>
               <tr>
                 <th style="width: 50px"></th>
-                <th style="width: 150px">Platform</th>
-                <th>Prompt Preset</th>
+                <th style="width: 120px">Platform</th>
+                <th>Text Preset</th>
+                <th>Image Preset</th>
+                <th>Video Preset</th>
                 <th>Additional Context</th>
+                <th>Settings</th>
               </tr>
             </thead>
             <tbody>
@@ -92,10 +95,35 @@ import { ThoughtsService } from '../../services/thoughts.service';
                       [(ngModel)]="platformConfigs[platform].presetId"
                       [name]="platform + '_preset'"
                       [disabled]="isLoading || !isPlatformSelected(platform)"
-                      required
                     >
-                      <option value="" disabled selected>Select a preset...</option>
-                      @for (preset of getPresetsForPlatform(platform); track preset.id) {
+                      <option value="">None (Default)</option>
+                      @for (preset of getPresetsForPlatform(platform, 'TEXT'); track preset.id) {
+                        <option [value]="preset.id">{{ preset.name }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      class="form-input table-input"
+                      [(ngModel)]="platformConfigs[platform].imagePresetId"
+                      [name]="platform + '_image_preset'"
+                      [disabled]="isLoading || !isPlatformSelected(platform)"
+                    >
+                      <option value="">None</option>
+                      @for (preset of getPresetsForPlatform(platform, 'IMAGE'); track preset.id) {
+                        <option [value]="preset.id">{{ preset.name }}</option>
+                      }
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      class="form-input table-input"
+                      [(ngModel)]="platformConfigs[platform].videoPresetId"
+                      [name]="platform + '_video_preset'"
+                      [disabled]="isLoading || !isPlatformSelected(platform)"
+                    >
+                      <option value="">None</option>
+                      @for (preset of getPresetsForPlatform(platform, 'VIDEO'); track preset.id) {
                         <option [value]="preset.id">{{ preset.name }}</option>
                       }
                     </select>
@@ -106,11 +134,63 @@ import { ThoughtsService } from '../../services/thoughts.service';
                       class="form-input table-input"
                       [(ngModel)]="platformConfigs[platform].additionalContext"
                       [name]="platform + '_context'"
-                      placeholder="Optional per-platform instructions..."
+                      placeholder="Context..."
                       [disabled]="isLoading || !isPlatformSelected(platform)"
                     />
                   </td>
+                  <td>
+                    <button type="button" class="btn-icon" (click)="toggleSettings(platform)" [disabled]="!isPlatformSelected(platform)">⚙️</button>
+                  </td>
                 </tr>
+                @if (expandedPlatform() === platform) {
+                  <tr class="settings-row">
+                    <td colspan="7">
+                      <div class="settings-panel card">
+                        <h4>Generation Parameters ({{ platform }})</h4>
+                        <div class="settings-grid">
+                          <div class="form-group">
+                            <label class="form-label">Resolution</label>
+                            <select class="form-input" [(ngModel)]="platformConfigs[platform].imageParams.resolution" [name]="platform + '_res'">
+                                <option value="512x512">512x512</option>
+                                <option value="1024x1024">1024x1024 (Default)</option>
+                            </select>
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label">Steps</label>
+                            <input type="number" class="form-input" [(ngModel)]="platformConfigs[platform].imageParams.steps" [name]="platform + '_steps'" min="1" max="100">
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label">CFG Scale</label>
+                            <input type="number" class="form-input" [(ngModel)]="platformConfigs[platform].imageParams.cfgScale" [name]="platform + '_cfg'" step="0.5" min="1" max="20">
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label">Sampler</label>
+                            <input type="text" class="form-input" [(ngModel)]="platformConfigs[platform].imageParams.sampler" [name]="platform + '_sampler'" placeholder="e.g., DPM++ 2M Karras">
+                          </div>
+                        </div>
+
+                        <h4 class="mt-md">Video Parameters ({{ platform }})</h4>
+                        <div class="settings-grid">
+                          <div class="form-group">
+                            <label class="form-label">Resolution</label>
+                            <select class="form-input" [(ngModel)]="platformConfigs[platform].videoParams.resolution" [name]="platform + '_v_res'">
+                                <option value="576x1024">576x1024 (Vertical)</option>
+                                <option value="1024x576">1024x576 (Widescreen)</option>
+                            </select>
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label">Duration (s)</label>
+                            <input type="number" class="form-input" [(ngModel)]="platformConfigs[platform].videoParams.duration" [name]="platform + '_duration'" min="1" max="60">
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label">FPS</label>
+                            <input type="number" class="form-input" [(ngModel)]="platformConfigs[platform].videoParams.fps" [name]="platform + '_fps'" min="8" max="60">
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                }
               }
             </tbody>
           </table>
@@ -242,6 +322,41 @@ import { ThoughtsService } from '../../services/thoughts.service';
         font-size: 1.5rem;
       }
     }
+
+    .settings-row {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .settings-panel {
+      padding: var(--spacing-lg);
+      margin: var(--spacing-sm);
+      border: 1px dashed var(--border-color);
+
+      h4 {
+        margin-top: 0;
+        margin-bottom: var(--spacing-md);
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: var(--spacing-md);
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 4px;
+      border-radius: 4px;
+      transition: background 0.2s;
+      &:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+      &:disabled { opacity: 0.3; cursor: not-allowed; }
+    }
   `]
 })
 export class ThoughtInputComponent implements OnInit {
@@ -261,11 +376,20 @@ export class ThoughtInputComponent implements OnInit {
 
     platforms: PlatformType[] = ['LINKEDIN', 'FACEBOOK', 'INSTAGRAM'];
 
+    expandedPlatform = signal<string | null>(null);
+
     // Track configurations per platform
-    platformConfigs: Record<string, { presetId: string; additionalContext: string }> = {
-        'LINKEDIN': { presetId: '', additionalContext: '' },
-        'FACEBOOK': { presetId: '', additionalContext: '' },
-        'INSTAGRAM': { presetId: '', additionalContext: '' }
+    platformConfigs: Record<string, {
+        presetId: string;
+        imagePresetId: string;
+        videoPresetId: string;
+        additionalContext: string;
+        imageParams: GenerationParameters;
+        videoParams: GenerationParameters;
+    }> = {
+        'LINKEDIN': { presetId: '', imagePresetId: '', videoPresetId: '', additionalContext: '', imageParams: { resolution: '1024x1024', steps: 30, cfgScale: 7 }, videoParams: { resolution: '1024x576', duration: 4, fps: 24 } },
+        'FACEBOOK': { presetId: '', imagePresetId: '', videoPresetId: '', additionalContext: '', imageParams: { resolution: '1024x1024', steps: 30, cfgScale: 7 }, videoParams: { resolution: '1024x576', duration: 4, fps: 24 } },
+        'INSTAGRAM': { presetId: '', imagePresetId: '', videoPresetId: '', additionalContext: '', imageParams: { resolution: '1024x1024', steps: 30, cfgScale: 7 }, videoParams: { resolution: '576x1024', duration: 4, fps: 24 } }
     };
 
     ngOnInit() {
@@ -277,13 +401,14 @@ export class ThoughtInputComponent implements OnInit {
     loadCategories() {
         this.thoughtsService.getCategories().subscribe({
             next: (cats) => {
-                this.categories.set(cats);
-                // If there's a Default category, select it
-                const defaultCat = cats.find(c => c.thoughtCategory === 'Default');
+                const textCats = cats.filter(c => c.type === 'TEXT' || !c.type);
+                this.categories.set(textCats);
+                // If there's a Narrative category, select it
+                const defaultCat = textCats.find(c => c.thoughtCategory === 'Narrative' || c.thoughtCategory === 'Default');
                 if (defaultCat) {
                     this.selectedCategoryId = defaultCat.id!;
-                } else if (cats.length > 0) {
-                    this.selectedCategoryId = cats[0].id!;
+                } else if (textCats.length > 0) {
+                    this.selectedCategoryId = textCats[0].id!;
                 }
             },
             error: (err) => console.error('Failed to load categories', err)
@@ -296,9 +421,14 @@ export class ThoughtInputComponent implements OnInit {
                 this.allPresets.set(presets);
                 // Select first available preset for each platform by default
                 this.platforms.forEach(p => {
-                    const platformPresets = presets.filter(pr => pr.platform === p);
-                    if (platformPresets.length > 0) {
-                        this.platformConfigs[p].presetId = platformPresets[0].id!;
+                    const platformTextPresets = presets.filter(pr => pr.platform === p && (pr.type === 'TEXT' || !pr.type));
+                    if (platformTextPresets.length > 0) {
+                        this.platformConfigs[p].presetId = platformTextPresets[0].id!;
+                    }
+
+                    const platformImagePresets = presets.filter(pr => pr.platform === p && pr.type === 'IMAGE');
+                    if (platformImagePresets.length > 0) {
+                        this.platformConfigs[p].imagePresetId = platformImagePresets[0].id!;
                     }
                 });
             },
@@ -306,8 +436,8 @@ export class ThoughtInputComponent implements OnInit {
         });
     }
 
-    getPresetsForPlatform(platform: PlatformType): PlatformPrompt[] {
-        return this.allPresets().filter(p => p.platform === platform);
+    getPresetsForPlatform(platform: PlatformType, type: PromptType): PlatformPrompt[] {
+        return this.allPresets().filter(p => p.platform === platform && (p.type === type || (!p.type && type === 'TEXT')));
     }
 
     isPlatformSelected(platform: PlatformType): boolean {
@@ -368,14 +498,26 @@ export class ThoughtInputComponent implements OnInit {
         return PLATFORM_CONFIG[platform].color;
     }
 
+    toggleSettings(platform: string) {
+        if (this.expandedPlatform() === platform) {
+            this.expandedPlatform.set(null);
+        } else {
+            this.expandedPlatform.set(platform);
+        }
+    }
+
     onSubmit() {
         if (!this.thought.trim() || this.selectedPlatforms().length === 0) return;
 
         // Create platform specific configurations
         const configs: PlatformSelection[] = this.selectedPlatforms().map(p => ({
             platform: p,
-            presetId: this.platformConfigs[p].presetId,
-            additionalContext: this.platformConfigs[p].additionalContext.trim() || undefined
+            presetId: this.platformConfigs[p].presetId || undefined,
+            imagePresetId: this.platformConfigs[p].imagePresetId || undefined,
+            videoPresetId: this.platformConfigs[p].videoPresetId || undefined,
+            additionalContext: this.platformConfigs[p].additionalContext.trim() || undefined,
+            imageParams: this.platformConfigs[p].imagePresetId ? this.platformConfigs[p].imageParams : undefined,
+            videoParams: this.platformConfigs[p].videoPresetId ? this.platformConfigs[p].videoParams : undefined
         }));
 
         const request: CreateThoughtRequest = {

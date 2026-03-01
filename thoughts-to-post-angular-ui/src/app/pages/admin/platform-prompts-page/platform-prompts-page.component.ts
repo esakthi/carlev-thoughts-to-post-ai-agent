@@ -25,6 +25,7 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
                 </span>
                 <div>
                   <h3>{{ prompt.name || 'Untitled Preset' }}</h3>
+                  <span class="badge" [class]="'badge-' + (prompt.type?.toLowerCase() || 'text')">{{ prompt.type || 'TEXT' }}</span>
                   <p class="preset-description">{{ prompt.description }}</p>
                   <small class="platform-label">{{ PLATFORM_CONFIG[prompt.platform].label }}</small>
                 </div>
@@ -54,6 +55,15 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
                 @for (p of platforms; track p) {
                   <option [value]="p">{{ PLATFORM_CONFIG[p].label }}</option>
                 }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prompt Type</label>
+              <select class="form-input" [(ngModel)]="currentPrompt().type" name="type" required>
+                <option value="TEXT">TEXT</option>
+                <option value="IMAGE">IMAGE</option>
+                <option value="VIDEO">VIDEO</option>
+                <option value="OTHERS">OTHERS</option>
               </select>
             </div>
             <div class="form-group">
@@ -115,7 +125,23 @@ import { PlatformPrompt, PLATFORM_CONFIG, PlatformType } from '../../../models/t
       text-transform: uppercase;
       letter-spacing: 0.05em;
       font-size: 0.7rem;
+      display: block;
+      margin-top: 0.25rem;
     }
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.4rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+    .badge-text { background: #4a90e2; color: white; }
+    .badge-image { background: #e1306c; color: white; }
+    .badge-video { background: #f5a623; color: white; }
+    .badge-others { background: #7b7b7b; color: white; }
 
     .platform-icon {
       width: 40px;
@@ -192,6 +218,7 @@ export class PlatformPromptsPageComponent implements OnInit {
         name: '',
         description: '',
         platform: 'LINKEDIN',
+        type: 'TEXT',
         promptText: ''
     });
 
@@ -211,6 +238,7 @@ export class PlatformPromptsPageComponent implements OnInit {
             name: '',
             description: '',
             platform: 'LINKEDIN',
+            type: 'TEXT',
             promptText: ''
         });
         this.showModal.set(true);

@@ -24,7 +24,7 @@ class ImageGenerator(ABC):
     """Abstract base class for image generators."""
 
     @abstractmethod
-    def generate(self, prompt: str) -> GeneratedImage:
+    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
         """Generate an image from a prompt."""
         pass
 
@@ -37,7 +37,7 @@ class PillowFallbackGenerator(ImageGenerator):
     visibly in the UI and can be opened for validation.
     """
 
-    def generate(self, prompt: str) -> GeneratedImage:
+    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
         """Return a branded placeholder PNG with the prompt text rendered on it."""
         try:
             from PIL import Image, ImageDraw, ImageFont
@@ -137,7 +137,7 @@ class StableDiffusionGenerator(ImageGenerator):
         """Initialize the Stable Diffusion generator."""
         self.api_url = api_url or settings.stable_diffusion_url
 
-    def generate(self, prompt: str) -> GeneratedImage:
+    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
         """Generate an image using Stable Diffusion.
 
         Falls back to PillowFallbackGenerator if SD is unreachable so the
@@ -148,18 +148,38 @@ class StableDiffusionGenerator(ImageGenerator):
 
         endpoint = f"{self.api_url}/sdapi/v1/txt2img"
 
+        # Default parameters
+        width, height = 1024, 1024
+        steps = 30
+        cfg_scale = 7
+        sampler = "DPM++ 2M Karras"
+
+        if params:
+            if params.get("resolution"):
+                res = params["resolution"].split("x")
+                if len(res) == 2:
+                    width, height = int(res[0]), int(res[1])
+            steps = params.get("steps") or steps
+            cfg_scale = params.get("cfgScale") or params.get("cfg_scale") or cfg_scale
+            sampler = params.get("sampler") or sampler
+
         payload = {
             "prompt": prompt,
             "negative_prompt": "blurry, low quality, distorted, watermark, text, logo, NSFW, offensive",
-            "steps": 30,
-            "width": 1024,
-            "height": 1024,
-            "cfg_scale": 7,
-            "sampler_name": "DPM++ 2M Karras",
+            "steps": steps,
+            "width": width,
+            "height": height,
+            "cfg_scale": cfg_scale,
+            "sampler_name": sampler,
         }
 
+        # Heuristic timeout estimation
+        estimated_seconds = (width * height / (512 * 512)) * (steps / 20) * 10
+        timeout = max(120.0, estimated_seconds * 1.5)
+        logger.info(f"Estimated runtime: {estimated_seconds}s. Using timeout: {timeout}s")
+
         try:
-            with httpx.Client(timeout=120.0) as client:
+            with httpx.Client(timeout=timeout) as client:
                 logger.debug(f"Sending request to Stable Diffusion: {endpoint}")
                 response = client.post(endpoint, json=payload)
                 response.raise_for_status()
@@ -200,7 +220,7 @@ class DalleGenerator(ImageGenerator):
         if not self.api_key:
             raise ValueError("OpenAI API key required for DALL-E generator")
 
-    def generate(self, prompt: str) -> GeneratedImage:
+    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
         """Generate an image using DALL-E."""
         logger.info("Generating image via OpenAI DALL-E 3")
         logger.debug(f"DALL-E Prompt: {prompt}")
@@ -252,7 +272,7 @@ class OllamaGenerator(ImageGenerator):
         self.api_url = api_url or settings.ollama_base_url
         self.model_name = model_name or settings.ollama_image_model
 
-    def generate(self, prompt: str) -> GeneratedImage:
+    def generate(self, prompt: str, params: Optional[dict] = None) -> GeneratedImage:
         """Generate an image using Ollama."""
         endpoint = f"{self.api_url}/api/generate"
 
@@ -372,8 +392,13 @@ class ImageGenerationAgent:
             )
         return self._prompt_llm
 
-    def generate_image_prompt(self, content: str, refinement_instructions: Optional[str] = None) -> str:
-        """Generate or refine an image prompt based on content and feedback."""
+    def generate_image_prompt(
+        self,
+        content: str,
+        user_image_prompt: Optional[str] = None,
+        refinement_instructions: Optional[str] = None
+    ) -> str:
+        """Generate or refine an image prompt based on content, user base prompt, and feedback."""
         llm = self._get_prompt_llm()
 
         system_msg = """You are an expert at creating image generation prompts for AI art models.
@@ -388,13 +413,19 @@ Guidelines:
 - Keep the prompt under 200 words
 - Do NOT include text in the image
 - Make it suitable for professional/business content
+- If a base prompt is provided, enhance it and combine it with the post content.
 - If refinement instructions are provided, incorporate them into the prompt.
 
-Respond with ONLY the image prompt, nothing else."""
+Respond with ONLY the enhanced image prompt, nothing else."""
 
-        human_msg = f"Create an image generation prompt for the following social media content:\n\n{content}"
+        human_msg = f"Social media content:\n\n{content}"
+        if user_image_prompt:
+            human_msg += f"\n\nBase image prompt to enhance: {user_image_prompt}"
+        else:
+            human_msg += "\n\nCreate a suitable visual prompt for this content."
+
         if refinement_instructions:
-            human_msg += f"\n\nRefine the prompt with these specific instructions: {refinement_instructions}"
+            human_msg += f"\n\nRefine the final prompt with these specific instructions: {refinement_instructions}"
 
         prompt_template = ChatPromptTemplate.from_messages([
             ("system", system_msg),
@@ -414,14 +445,20 @@ Respond with ONLY the image prompt, nothing else."""
     def generate_for_content(
         self,
         content: EnrichedContent,
+        user_image_prompt: Optional[str] = None,
+        image_params: Optional[dict] = None,
         refinement_instructions: Optional[str] = None,
         request_id: Optional[str] = None,
     ) -> GeneratedImage:
         """Generate an image based on enriched content and save it to disk."""
         logger.info(f"Generating image for {content.platform.value} content")
-        image_prompt = self.generate_image_prompt(content.body, refinement_instructions)
+        image_prompt = self.generate_image_prompt(
+            content.body,
+            user_image_prompt=user_image_prompt,
+            refinement_instructions=refinement_instructions
+        )
         generator = self._get_generator()
-        image = generator.generate(image_prompt)
+        image = generator.generate(image_prompt, params=image_params)
 
         # Save to disk for validation (non-fatal if it fails)
         _save_image_to_disk(

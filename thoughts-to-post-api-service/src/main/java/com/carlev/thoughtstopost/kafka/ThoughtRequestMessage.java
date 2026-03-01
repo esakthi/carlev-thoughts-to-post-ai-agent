@@ -42,7 +42,11 @@ public class ThoughtRequestMessage {
     @AllArgsConstructor
     public static class PlatformConfiguration {
         private PlatformType platform;
-        private String prompt;
+        private String prompt; // Text enrichment prompt
+        private String imagePrompt;
+        private String videoPrompt;
         private String additionalContext;
+        private GenerationParameters imageParams;
+        private GenerationParameters videoParams;
     }
 }
